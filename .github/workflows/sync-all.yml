@@ -1,0 +1,42 @@
+name: Sync Submodules Across Org
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  update-meta:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Meta Repository
+        uses: actions/checkout@v4
+        with:
+          repository: Volontariapp/meta
+          token: ${{ secrets.ORG_REPO_TOKEN }}
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup Git Configuration
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Update Service Submodules
+        run: |
+          git submodule update --init --recursive
+          git submodule foreach --recursive 'git fetch origin main && git rebase origin/main || echo "No changes"'
+
+      - name: Update ci-tools Pointers
+        run: |
+          git submodule update --remote ci-tools
+          git add .
+          
+      - name: Commit and Push Changes
+        run: |
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: automated sync of ci-tools and submodules"
+            git push origin main
+          else
+            echo "No changes to commit"
+          fi

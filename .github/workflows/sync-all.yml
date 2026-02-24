@@ -1,4 +1,4 @@
-name: Sync Submodules Across Org
+name: Global Sync CI-Tools
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - main
 
 jobs:
-  update-meta:
+  sync-repositories:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Meta Repository
@@ -22,21 +22,36 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Update Service Submodules
+      - name: Update each Service and Push
         run: |
-          git submodule update --init --recursive
-          git submodule foreach --recursive 'git fetch origin main && git rebase origin/main || echo "No changes"'
-
-      - name: Update ci-tools Pointers
-        run: |
-          git submodule update --remote ci-tools
-          git add .
+          SERVICES=("api-gateway" "ms-event" "ms-post" "ms-user" "nativapp" "npm-packages")
           
-      - name: Commit and Push Changes
+          for repo in "${SERVICES[@]}"; do
+            echo "Processing $repo..."
+            cd $repo
+            
+            git checkout main
+            git pull origin main
+            
+            git submodule update --remote ci-tools
+            
+            if ! git diff --quiet; then
+              git add ci-tools
+              git commit -m "chore: update ci-tools to latest version"
+              git push https://x-access-token:${{ secrets.ORG_REPO_TOKEN }}@github.com/Volontariapp/$repo.git main
+            else
+              echo "No changes for $repo"
+            fi
+            
+            cd ..
+          done
+
+      - name: Update Meta Repository Pointers
         run: |
+          git add .
           if ! git diff --cached --quiet; then
-            git commit -m "chore: automated sync of ci-tools and submodules"
+            git commit -m "chore: sync all services with latest ci-tools"
             git push origin main
           else
-            echo "No changes to commit"
+            echo "Meta repo already up to date"
           fi

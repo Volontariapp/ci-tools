@@ -9,14 +9,6 @@ jobs:
   sync-repositories:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Meta Repository
-        uses: actions/checkout@v4
-        with:
-          repository: Volontariapp/meta
-          token: ${{ secrets.ORG_REPO_TOKEN }}
-          submodules: recursive
-          fetch-depth: 0
-
       - name: Setup Git Configuration
         run: |
           git config --global user.name "github-actions[bot]"
@@ -28,10 +20,9 @@ jobs:
           
           for repo in "${SERVICES[@]}"; do
             echo "Processing $repo..."
-            cd $repo
             
-            git checkout main
-            git pull origin main
+            git clone --recursive https://x-access-token:${{ secrets.ORG_REPO_TOKEN }}@github.com/Volontariapp/$repo.git $repo
+            cd $repo
             
             git submodule update --remote ci-tools
             
@@ -44,14 +35,5 @@ jobs:
             fi
             
             cd ..
+            rm -rf $repo
           done
-
-      - name: Update Meta Repository Pointers
-        run: |
-          git add .
-          if ! git diff --cached --quiet; then
-            git commit -m "chore: sync all services with latest ci-tools"
-            git push origin main
-          else
-            echo "Meta repo already up to date"
-          fi

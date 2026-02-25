@@ -13,6 +13,7 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global url."https://x-access-token:${{ secrets.ORG_REPO_TOKEN }}@github.com/".insteadOf "git@github.com:"
 
       - name: Update each Service and Push
         run: |

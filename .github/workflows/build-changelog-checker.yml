@@ -24,9 +24,6 @@ jobs:
       - name: Build Binary
         if: github.ref == 'refs/heads/main'
         run: |
-          # Build a static multi-platform binary if needed, but for CI a Linux binary is fine
-          # If devs use macOS, maybe build for multiple platforms?
-          # Let's build for linux/amd64 and darwin/amd64 (macOS)
           GOOS=linux GOARCH=amd64 go build -o changelog-checker-linux-amd64 main.go
           GOOS=darwin GOARCH=amd64 go build -o changelog-checker-darwin-amd64 main.go
           GOOS=darwin GOARCH=arm64 go build -o changelog-checker-darwin-arm64 main.go

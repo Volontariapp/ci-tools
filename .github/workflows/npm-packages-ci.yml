@@ -1,0 +1,41 @@
+name: NPM Packages CI
+
+on:
+  workflow_call:
+    secrets:
+      ORG_REPO_TOKEN:
+        required: true
+
+jobs:
+  lint-test-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.ORG_REPO_TOKEN }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: yarn
+
+      - name: Setup Environment
+        run: yarn setup
+
+      - name: Check Changelogs Compliance
+        run: yarn check-changelogs
+
+      - name: Install Dependencies
+        run: yarn install --immutable
+
+      - name: Lint Packages
+        run: yarn lint
+
+      - name: Build Packages
+        run: yarn build
+
+      - name: Test Packages
+        run: yarn test

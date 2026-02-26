@@ -7,7 +7,31 @@ on:
         required: true
 
 jobs:
+  check-changelogs:
+    name: Check Changelogs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.ORG_REPO_TOKEN }}
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.14.0
+          cache: yarn
+
+      - name: Check Changelogs Compliance
+        run: bash scripts/check-changelogs.sh
+
   lint-test-build:
+    name: Lint, Test & Build
+    needs: check-changelogs
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -27,9 +51,6 @@ jobs:
 
       - name: Setup Environment
         run: bash scripts/setup.sh
-
-      - name: Check Changelogs Compliance
-        run: bash scripts/check-changelogs.sh
 
       - name: Install Dependencies
         run: yarn install --immutable

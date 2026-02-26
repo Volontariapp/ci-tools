@@ -16,6 +16,7 @@ jobs:
         with:
           submodules: recursive
           token: ${{ secrets.ORG_REPO_TOKEN }}
+          fetch-depth: 0
 
       - name: Enable Corepack
         run: corepack enable
@@ -28,6 +29,8 @@ jobs:
 
       - name: Check Changelogs Compliance
         run: bash scripts/check-changelogs.sh
+        env:
+          GITHUB_BEFORE: ${{ github.event.before }}
 
   lint-test-build:
     name: Lint, Test & Build

@@ -28,7 +28,7 @@ jobs:
         env:
           GITHUB_BEFORE: ${{ github.event.before }}
 
-  lint-test-build:
+  test-build:
     name: Test & Build (${{ matrix.package }})
     needs: check-changelogs
     if: needs.check-changelogs.outputs.has_changes == 'true'
@@ -48,9 +48,6 @@ jobs:
         uses: Volontariapp/ci-tools/.github/actions/setup-node-yarn@main
         with:
           node-version: 24.14.0
-
-      - name: Setup Environment
-        run: bash scripts/setup.sh
 
       - name: Install Dependencies
         run: cd packages/${{ matrix.package }} && yarn workspaces focus

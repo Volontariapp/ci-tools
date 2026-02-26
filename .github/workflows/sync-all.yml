@@ -17,7 +17,7 @@ jobs:
 
       - name: Update each Service and Push
         run: |
-          SERVICES=("api-gateway" "ms-event" "ms-post" "ms-user" "nativapp" "npm-packages")
+          SERVICES=("api-gateway" "ms-event" "ms-post" "ms-user" "nativapp" "npm-packages", "changelog-checker")
           
           for repo in "${SERVICES[@]}"; do
             echo "Processing $repo..."

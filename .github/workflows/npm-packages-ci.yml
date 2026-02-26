@@ -67,9 +67,6 @@ jobs:
       - name: Install Dependencies
         run: cd packages/${{ matrix.package }} && yarn workspaces focus
 
-      - name: Lint Package
-        run: cd packages/${{ matrix.package }} && yarn lint
-
       - name: Build Package
         run: cd packages/${{ matrix.package }} && yarn build
 

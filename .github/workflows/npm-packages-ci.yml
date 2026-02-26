@@ -44,11 +44,8 @@ jobs:
           submodules: recursive
           token: ${{ secrets.ORG_REPO_TOKEN }}
 
-      - name: Enable Corepack
-        run: corepack enable
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - name: Setup Node & Yarn
+        uses: Volontariapp/ci-tools/.github/actions/setup-node-yarn@main
         with:
           node-version: 24.14.0
 

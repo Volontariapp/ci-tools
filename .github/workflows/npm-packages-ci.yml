@@ -12,6 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       has_changes: ${{ steps.check.outputs.has_changes }}
+      changed_packages: ${{ steps.check.outputs.changed_packages }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -36,10 +37,14 @@ jobs:
           GITHUB_BEFORE: ${{ github.event.before }}
 
   lint-test-build:
-    name: Lint, Test & Build
+    name: Lint, Test & Build (${{ matrix.package }})
     needs: check-changelogs
     if: needs.check-changelogs.outputs.has_changes == 'true'
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJson(needs.check-changelogs.outputs.changed_packages) }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -62,11 +67,11 @@ jobs:
       - name: Install Dependencies
         run: yarn install --immutable
 
-      - name: Lint Packages
-        run: yarn lint
+      - name: Lint Package
+        run: cd packages/${{ matrix.package }} && yarn lint
 
-      - name: Build Packages
-        run: yarn build
+      - name: Build Package
+        run: cd packages/${{ matrix.package }} && yarn build
 
-      - name: Test Packages
-        run: yarn test
+      - name: Test Package
+        run: cd packages/${{ matrix.package }} && yarn test

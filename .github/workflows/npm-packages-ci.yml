@@ -26,10 +26,10 @@ jobs:
           cache: yarn
 
       - name: Setup Environment
-        run: yarn setup
+        run: bash scripts/setup.sh
 
       - name: Check Changelogs Compliance
-        run: yarn check-changelogs
+        run: bash scripts/check-changelogs.sh
 
       - name: Install Dependencies
         run: yarn install --immutable

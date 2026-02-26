@@ -1,0 +1,59 @@
+name: Build and Deploy Changelog Checker
+
+on:
+  workflow_call:
+    secrets:
+      ORG_REPO_TOKEN:
+        required: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout changelog-checker
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Run Tests
+        run: go test -v ./...
+
+      - name: Build Binary
+        if: github.ref == 'refs/heads/main'
+        run: |
+          # Build a static multi-platform binary if needed, but for CI a Linux binary is fine
+          # If devs use macOS, maybe build for multiple platforms?
+          # Let's build for linux/amd64 and darwin/amd64 (macOS)
+          GOOS=linux GOARCH=amd64 go build -o changelog-checker-linux-amd64 main.go
+          GOOS=darwin GOARCH=amd64 go build -o changelog-checker-darwin-amd64 main.go
+          GOOS=darwin GOARCH=arm64 go build -o changelog-checker-darwin-arm64 main.go
+
+      - name: Checkout npm-packages
+        if: github.ref == 'refs/heads/main'
+        uses: actions/checkout@v4
+        with:
+          repository: Volontariapp/npm-packages
+          token: ${{ secrets.ORG_REPO_TOKEN }}
+          path: npm-packages-repo
+
+      - name: Deploy binary to npm-packages/tools
+        if: github.ref == 'refs/heads/main'
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          mkdir -p npm-packages-repo/tools
+          cp changelog-checker-* npm-packages-repo/tools/
+          
+          cd npm-packages-repo
+          git add tools/
+          
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: update changelog-checker binaries"
+            git push origin main
+          else
+            echo "Binaries are already up to date."
+          fi

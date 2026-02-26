@@ -65,7 +65,7 @@ jobs:
         run: bash scripts/setup.sh
 
       - name: Install Dependencies
-        run: yarn install --immutable
+        run: cd packages/${{ matrix.package }} && yarn workspaces focus
 
       - name: Lint Package
         run: cd packages/${{ matrix.package }} && yarn lint

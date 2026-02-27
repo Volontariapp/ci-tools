@@ -17,16 +17,16 @@ jobs:
 
       - name: Update each Service and Push
         run: |
-          SERVICES=("api-gateway" "ms-event" "ms-post" "ms-user" "nativapp" "npm-packages" "changelog-checker")
-          
+          SERVICES=("api-gateway" "ms-event" "ms-post" "ms-user" "nativapp" "npm-packages" "changelog-checker" "proto-registry")
+
           for repo in "${SERVICES[@]}"; do
             echo "Processing $repo..."
-            
+
             git clone --recursive https://x-access-token:${{ secrets.ORG_REPO_TOKEN }}@github.com/Volontariapp/$repo.git $repo
             cd $repo
-            
+
             git submodule update --remote ci-tools
-            
+
             if ! git diff --quiet; then
               git add ci-tools
               git commit -m "chore: update ci-tools to latest version"
@@ -34,7 +34,7 @@ jobs:
             else
               echo "No changes for $repo"
             fi
-            
+
             cd ..
             rm -rf $repo
           done

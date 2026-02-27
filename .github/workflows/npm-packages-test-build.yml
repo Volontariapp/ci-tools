@@ -1,42 +1,24 @@
-name: NPM Packages CI
+name: NPM Packages Test & Build
 
 on:
   workflow_call:
+    inputs:
+      changed_packages:
+        description: "JSON array of changed packages"
+        required: true
+        type: string
     secrets:
       ORG_REPO_TOKEN:
         required: true
 
 jobs:
-  check-changelogs:
-    name: Check Changelogs
-    runs-on: ubuntu-latest
-    outputs:
-      has_changes: ${{ steps.check.outputs.has_changes }}
-      changed_packages: ${{ steps.check.outputs.changed_packages }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          token: ${{ secrets.ORG_REPO_TOKEN }}
-          fetch-depth: 0
-
-
-      - name: Check Changelogs Compliance
-        id: check
-        run: bash scripts/check-changelogs.sh
-        env:
-          GITHUB_BEFORE: ${{ github.event.before }}
-
   test-build:
     name: Test & Build (${{ matrix.package }})
-    needs: check-changelogs
-    if: needs.check-changelogs.outputs.has_changes == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        package: ${{ fromJson(needs.check-changelogs.outputs.changed_packages) }}
+        package: ${{ fromJson(inputs.changed_packages) }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

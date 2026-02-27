@@ -1,0 +1,35 @@
+name: NPM Packages Changelog Checker
+
+on:
+  workflow_call:
+    secrets:
+      ORG_REPO_TOKEN:
+        required: true
+    outputs:
+      has_changes:
+        description: "Boolean indicating if packages changed"
+        value: ${{ jobs.check-changelogs.outputs.has_changes }}
+      changed_packages:
+        description: "JSON array of changed packages"
+        value: ${{ jobs.check-changelogs.outputs.changed_packages }}
+
+jobs:
+  check-changelogs:
+    name: Check Changelogs
+    runs-on: ubuntu-latest
+    outputs:
+      has_changes: ${{ steps.check.outputs.has_changes }}
+      changed_packages: ${{ steps.check.outputs.changed_packages }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.ORG_REPO_TOKEN }}
+          fetch-depth: 0
+
+      - name: Check Changelogs Compliance
+        id: check
+        run: bash scripts/check-changelogs.sh
+        env:
+          GITHUB_BEFORE: ${{ github.event.before }}

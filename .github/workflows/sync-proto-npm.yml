@@ -1,0 +1,103 @@
+name: Sync Proto to NPM Packages
+
+on:
+  workflow_call:
+    inputs:
+      proto_repository:
+        description: "Repository containing the proto files"
+        default: "Volontariapp/proto-registry"
+        type: string
+      npm_repository:
+        description: "Repository for the npm packages"
+        default: "Volontariapp/npm-packages"
+        type: string
+      node_version:
+        description: "Node version to use"
+        default: "24.14.0"
+        type: string
+    secrets:
+      ORG_REPO_TOKEN:
+        required: true
+
+jobs:
+  sync-proto-to-npm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Git Configuration
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Checkout NPM Packages
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.npm_repository }}
+          token: ${{ secrets.ORG_REPO_TOKEN }}
+          path: npm-packages
+          submodules: recursive
+
+      - name: Checkout Proto Registry
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.proto_repository }}
+          token: ${{ secrets.ORG_REPO_TOKEN }}
+          path: proto-registry
+
+      - name: Setup Node & Yarn
+        uses: Volontariapp/ci-tools/.github/actions/setup-node-yarn@main
+        with:
+          node-version: ${{ inputs.node_version }}
+
+      - name: Install Protobuf Tools (buf & ts-proto)
+        run: |
+          npm install -g @bufbuild/buf ts-proto
+
+      - name: Generate TypeScript types
+        run: |
+          cd proto-registry
+          buf generate
+
+          mkdir -p ../npm-packages/packages/domain-user/src/contracts
+          mkdir -p ../npm-packages/packages/domain-post/src/contracts
+          mkdir -p ../npm-packages/packages/domain-event/src/contracts
+
+          cp -r gen/ts/volontariapp/user/v1/* ../npm-packages/packages/domain-user/src/contracts/ || true
+          cp -r gen/ts/volontariapp/post/v1/* ../npm-packages/packages/domain-post/src/contracts/ || true
+          cp -r gen/ts/volontariapp/event/v1/* ../npm-packages/packages/domain-event/src/contracts/ || true
+
+      - name: Check modifications and bump versions
+        run: |
+          cd npm-packages
+
+          CHANGED_PKGS=$(git status --porcelain | awk '{print $2}' | grep '^packages/domain-.*/src/' | cut -d '/' -f 1,2 | sort | uniq)
+
+          if [ -z "$CHANGED_PKGS" ]; then
+            echo "No changes detected in proto definitions."
+            exit 0
+          fi
+
+          echo "Changes detected in: $CHANGED_PKGS"
+
+          for PKG in $CHANGED_PKGS; do
+            echo "Bumping version for $PKG..."
+            cd "$PKG"
+
+            NEW_VERSION=$(npm version patch --no-git-tag-version)
+
+            DATE=$(date +%Y-%m-%d)
+            CHANGELOG_ENTRY="## [${NEW_VERSION#v}] - $DATE\n### Changed\n- Auto-generated proto typings updated\n\n"
+
+            if [ -f CHANGELOG.md ]; then
+              echo -e "$CHANGELOG_ENTRY$(cat CHANGELOG.md)" > CHANGELOG.md
+            else
+              echo -e "# Changelog\n\n$CHANGELOG_ENTRY" > CHANGELOG.md
+            fi
+
+            cd ../..
+          done
+
+          git add packages/
+          git commit -m "chore(proto): auto-update typings and bump versions"
+
+          echo "Pushing changes to NPM Packages repository..."
+          git push origin HEAD:main

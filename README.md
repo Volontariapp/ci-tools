@@ -29,3 +29,35 @@ This `ci-tools` repository solves this by extracting the common CI configuration
     with:
       node-version: 24.14.0
   ```
+
+### Monitoring (`docker-compose.yml`)
+
+The repository includes a pre-configured observability stack using **OpenTelemetry Collector** and **Jaeger v2**.
+Both services are placed behind a Docker Compose **profile** called `monitoring`, meaning they will **not** start with a regular `docker compose up`.
+
+#### Starting the monitoring stack
+
+```bash
+docker compose --profile monitoring up -d
+```
+
+#### Stopping the monitoring stack
+
+```bash
+docker compose --profile monitoring down
+```
+
+#### Available UIs
+
+| Service | URL | Description |
+|---------|-----|-------------|
+| Jaeger UI | [http://localhost:16686](http://localhost:16686) | Trace visualization and search |
+
+#### Architecture
+
+```
+Your App ──OTLP──▶ OTel Collector ──OTLP──▶ Jaeger
+                   (localhost:4317)          (localhost:16686)
+```
+
+The **OTel Collector** receives traces, metrics, and logs via OTLP (gRPC `:4317` / HTTP `:4318`), then forwards traces to **Jaeger** for visualization. The collector configuration lives in `monitoring/otel-collector-config.yaml`.

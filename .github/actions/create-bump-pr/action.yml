@@ -21,6 +21,7 @@ runs:
   steps:
     - name: Create PR
       shell: bash
+      working-directory: npm-packages
       env:
         GH_TOKEN: ${{ inputs.github_token }}
       run: |

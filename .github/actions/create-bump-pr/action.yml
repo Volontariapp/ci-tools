@@ -40,7 +40,7 @@ runs:
           if [ -d "packages/$PKG" ]; then
             cd "packages/$PKG"
 
-            npm version patch --no-git-tag-version --loglevel=error > /dev/null
+            npm version minor --no-git-tag-version --loglevel=error > /dev/null
             NEW_VERSION=$(node -p "require('./package.json').version")
             DATE=$(date +%Y-%m-%d)
 

@@ -1,0 +1,81 @@
+name: "Create Bump and Changelog PR"
+description: "Bumps versions, updates changelogs, and creates a PR for modified packages"
+inputs:
+  github_token:
+    description: "GitHub Token"
+    required: true
+  commit_message:
+    description: "Commit message"
+    default: "chore(proto): auto-update typings and prepare release"
+  pr_title:
+    description: "PR Title"
+    default: "chore: sync proto typings"
+  pr_body:
+    description: "PR Body"
+    default: "Auto-generated proto typings update."
+  changed_pkgs:
+    description: "Space-separated list of changed packages in npm-packages/packages/"
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - name: Create PR
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+      run: |
+        if [ -z "${{ inputs.changed_pkgs }}" ]; then
+          echo "No packages changed."
+          exit 0
+        fi
+
+        echo "Changes detected in: ${{ inputs.changed_pkgs }}"
+
+        BRANCH_NAME="bot/sync-proto-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+        git checkout -b "$BRANCH_NAME"
+
+        for PKG in ${{ inputs.changed_pkgs }}; do
+          echo "Bumping version for $PKG..."
+          if [ -d "packages/$PKG" ]; then
+            cd "packages/$PKG"
+
+            npm version patch --no-git-tag-version --loglevel=error > /dev/null
+            NEW_VERSION=$(node -p "require('./package.json').version")
+            DATE=$(date +%Y-%m-%d)
+
+            if [ -f CHANGELOG.md ]; then
+              perl -pi -e 's/(All notable changes.*)/$1\n\n## ['"$NEW_VERSION"'] - '"$DATE"'\n\n### Changed\n\n- ${{ inputs.pr_body }}\n/g' CHANGELOG.md
+
+              if grep -q '^\[.*\].*github.com' CHANGELOG.md; then
+                awk -v newlink="[$NEW_VERSION]: https://github.com/Volontariapp/npm-packages/pull/PR_PLACEHOLDER" '/^\[.*\]: / && !inserted {print newlink; inserted=1} 1' CHANGELOG.md > CHANGELOG.tmp && mv CHANGELOG.tmp CHANGELOG.md
+              else
+                echo "[$NEW_VERSION]: https://github.com/Volontariapp/npm-packages/pull/PR_PLACEHOLDER" >> CHANGELOG.md
+              fi
+            else
+              echo -e "# Changelog\n\nAll notable changes to this project will be documented in this file.\n\n## [$NEW_VERSION] - $DATE\n\n### Changed\n\n- ${{ inputs.pr_body }}\n\n[$NEW_VERSION]: https://github.com/Volontariapp/npm-packages/pull/PR_PLACEHOLDER" > CHANGELOG.md
+            fi
+
+            cd ../..
+          fi
+        done
+
+        git add packages/
+        git commit -m "${{ inputs.commit_message }}"
+        git push -u origin "$BRANCH_NAME"
+
+        PR_URL=$(gh pr create --title "${{ inputs.pr_title }}" --body "${{ inputs.pr_body }}" --head "$BRANCH_NAME" --base main)
+        echo "Created PR: $PR_URL"
+
+        PR_NUMBER=$(echo "$PR_URL" | awk -F'/' '{print $NF}')
+
+        for PKG in ${{ inputs.changed_pkgs }}; do
+          if [ -f "packages/$PKG/CHANGELOG.md" ]; then
+            sed -i "s/PR_PLACEHOLDER/$PR_NUMBER/g" "packages/$PKG/CHANGELOG.md"
+          fi
+        done
+
+        git add packages/
+        git commit -m "chore: inject PR link into changelogs"
+        git push origin "$BRANCH_NAME"
+
+        gh pr merge "$PR_URL" --auto --squash

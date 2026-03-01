@@ -24,9 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Setup Git Configuration
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        uses: Volontariapp/ci-tools/.github/actions/setup-git@main
 
       - name: Checkout NPM Packages
         uses: actions/checkout@v4
@@ -55,76 +53,44 @@ jobs:
       - name: Generate TypeScript types
         run: |
           cd proto-registry
-          buf generate
-
-          mkdir -p ../npm-packages/packages/domain-user/src/contracts
-          mkdir -p ../npm-packages/packages/domain-post/src/contracts
-          mkdir -p ../npm-packages/packages/domain-event/src/contracts
-
-          cp -r gen/ts/volontariapp/user/v1/* ../npm-packages/packages/domain-user/src/contracts/ || true
-          cp -r gen/ts/volontariapp/post/v1/* ../npm-packages/packages/domain-post/src/contracts/ || true
-          cp -r gen/ts/volontariapp/event/v1/* ../npm-packages/packages/domain-event/src/contracts/ || true
+          
+          # Detect changed proto files to optimize code generation
+          # Fallback to generating all domains if git diff fails or is empty
+          CHANGED_PROTOS=$(git diff --name-only HEAD~1 HEAD | grep '\.proto$' || true)
+          
+          if [ -z "$CHANGED_PROTOS" ]; then
+            echo "No proto files changed. Generating all as fallback."
+            buf generate
+            DOMAINS="user post event common"
+          else
+            echo "Changed protos: $CHANGED_PROTOS"
+            buf generate
+            # Extract unique domains from changed files
+            DOMAINS=$(echo "$CHANGED_PROTOS" | grep -o '^proto/volontariapp/[^/]*' | cut -d'/' -f3 | sort | uniq | tr '\n' ' ')
+            echo "Domains to update: $DOMAINS"
+          fi
+          
+          for DOMAIN in $DOMAINS; do
+            if [ -n "$DOMAIN" ] && [ -d "gen/ts/volontariapp/$DOMAIN/v1" ]; then
+              DEST="../npm-packages/packages/contracts/src/$DOMAIN"
+              mkdir -p "$DEST"
+              
+              if [ "$DOMAIN" = "common" ]; then
+                cp gen/ts/volontariapp/$DOMAIN/v1/pagination.ts "$DEST/pagination.types.ts" 2>/dev/null || true
+              else
+                cp gen/ts/volontariapp/$DOMAIN/v1/${DOMAIN}.ts "$DEST/${DOMAIN}.types.ts" 2>/dev/null || true
+                cp gen/ts/volontariapp/$DOMAIN/v1/${DOMAIN}_request.ts "$DEST/${DOMAIN}.requests.ts" 2>/dev/null || true
+                cp gen/ts/volontariapp/$DOMAIN/v1/${DOMAIN}_response.ts "$DEST/${DOMAIN}.responses.ts" 2>/dev/null || true
+                cp gen/ts/volontariapp/$DOMAIN/v1/${DOMAIN}_service.ts "$DEST/${DOMAIN}.services.ts" 2>/dev/null || true
+              fi
+            fi
+          done
 
       - name: Check modifications, bump versions, and create PR
-        env:
-          GH_TOKEN: ${{ secrets.ORG_REPO_TOKEN }}
-        run: |
-          cd npm-packages
-
-          CHANGED_PKGS=$(git status --porcelain | awk '{print $2}' | grep '^packages/domain-.*/src/' | cut -d '/' -f 1,2 | sort | uniq)
-
-          if [ -z "$CHANGED_PKGS" ]; then
-            echo "No changes detected in proto definitions."
-            exit 0
-          fi
-
-          echo "Changes detected in: $CHANGED_PKGS"
-
-          BRANCH_NAME="bot/sync-proto-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          git checkout -b "$BRANCH_NAME"
-
-          for PKG in $CHANGED_PKGS; do
-            echo "Bumping version for $PKG..."
-            cd "$PKG"
-
-            # Use --loglevel=error to prevent npm output from polluting versions
-            npm version patch --no-git-tag-version --loglevel=error > /dev/null
-            NEW_VERSION=$(node -p "require('./package.json').version")
-
-            DATE=$(date +%Y-%m-%d)
-
-            if [ -f CHANGELOG.md ]; then
-              perl -pi -e 's/(All notable changes.*)/$1\n\n## ['"$NEW_VERSION"'] - '"$DATE"'\n\n### Changed\n\n- Auto-generated proto typings updated.\n/g' CHANGELOG.md
-
-              if grep -q '^\[.*\].*github.com' CHANGELOG.md; then
-                awk -v newlink="[$NEW_VERSION]: https://github.com/Volontariapp/npm-packages/pull/PR_PLACEHOLDER" '/^\[.*\]: / && !inserted {print newlink; inserted=1} 1' CHANGELOG.md > CHANGELOG.tmp && mv CHANGELOG.tmp CHANGELOG.md
-              else
-                echo "[$NEW_VERSION]: https://github.com/Volontariapp/npm-packages/pull/PR_PLACEHOLDER" >> CHANGELOG.md
-              fi
-            else
-              echo -e "# Changelog\n\nAll notable changes to this project will be documented in this file.\n\n## [$NEW_VERSION] - $DATE\n\n### Changed\n\n- Auto-generated proto typings updated.\n\n[$NEW_VERSION]: https://github.com/Volontariapp/npm-packages/pull/PR_PLACEHOLDER" > CHANGELOG.md
-            fi
-
-            cd ../..
-          done
-
-          git add packages/
-          git commit -m "chore(proto): auto-update typings and prepare release"
-          git push -u origin "$BRANCH_NAME"
-
-          PR_URL=$(gh pr create --title "chore: sync proto typings" --body "Auto-generated proto typings update." --head "$BRANCH_NAME" --base main)
-          echo "Created PR: $PR_URL"
-
-          PR_NUMBER=$(echo "$PR_URL" | awk -F'/' '{print $NF}')
-
-          for PKG in $CHANGED_PKGS; do
-            if [ -f "$PKG/CHANGELOG.md" ]; then
-              sed -i "s/PR_PLACEHOLDER/$PR_NUMBER/g" "$PKG/CHANGELOG.md"
-            fi
-          done
-
-          git add packages/
-          git commit -m "chore: inject PR link into changelogs"
-          git push origin "$BRANCH_NAME"
-
-          gh pr merge "$PR_URL" --auto --squash
+        uses: Volontariapp/ci-tools/.github/actions/create-bump-pr@main
+        with:
+          github_token: ${{ secrets.ORG_REPO_TOKEN }}
+          changed_pkgs: "contracts"
+          commit_message: "chore(proto): auto-update typings and prepare release"
+          pr_title: "chore: sync proto typings"
+          pr_body: "Auto-generated proto typings update."

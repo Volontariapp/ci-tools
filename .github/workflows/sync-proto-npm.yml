@@ -54,10 +54,10 @@ jobs:
       - name: Generate TypeScript types
         run: |
           cd proto-registry
-          CHANGED_PROTOS=$(git diff --name-only HEAD~1 HEAD | grep '\.proto$' || true)
-          
+          CHANGED_PROTOS=$(git diff --name-only HEAD~1 HEAD -- '*.proto' 2>/dev/null || true)
+
           if [ -z "$CHANGED_PROTOS" ]; then
-            echo "No proto files changed. Generating all as fallback."
+            echo "No proto files changed or first commit. Generating all."
             buf generate
             DOMAINS="user post event common"
           else
@@ -66,19 +66,18 @@ jobs:
             DOMAINS=$(echo "$CHANGED_PROTOS" | grep -o '^proto/volontariapp/[^/]*' | cut -d'/' -f3 | sort | uniq | tr '\n' ' ')
             echo "Domains to update: $DOMAINS"
           fi
-          
+
           for DOMAIN in $DOMAINS; do
             if [ -n "$DOMAIN" ] && [ -d "gen/ts/volontariapp/$DOMAIN" ]; then
               DEST="../npm-packages/packages/contracts/src/$DOMAIN"
               mkdir -p "$DEST"
-              
+
               if [ "$DOMAIN" = "common" ]; then
-                cp gen/ts/volontariapp/$DOMAIN/pagination.ts "$DEST/pagination.types.ts" 2>/dev/null || true
+                cp gen/ts/volontariapp/$DOMAIN/pagination.ts "$DEST/pagination.ts" 2>/dev/null || true
               else
-                cp gen/ts/volontariapp/$DOMAIN/${DOMAIN}.ts "$DEST/${DOMAIN}.types.ts" 2>/dev/null || true
-                cp gen/ts/volontariapp/$DOMAIN/${DOMAIN}_request.ts "$DEST/${DOMAIN}.requests.ts" 2>/dev/null || true
-                cp gen/ts/volontariapp/$DOMAIN/${DOMAIN}_response.ts "$DEST/${DOMAIN}.responses.ts" 2>/dev/null || true
-                cp gen/ts/volontariapp/$DOMAIN/${DOMAIN}_service.ts "$DEST/${DOMAIN}.services.ts" 2>/dev/null || true
+                cp gen/ts/volontariapp/$DOMAIN/${DOMAIN}.ts "$DEST/${DOMAIN}.ts" 2>/dev/null || true
+                cp gen/ts/volontariapp/$DOMAIN/${DOMAIN}.requests.ts "$DEST/${DOMAIN}.requests.ts" 2>/dev/null || true
+                cp gen/ts/volontariapp/$DOMAIN/${DOMAIN}.responses.ts "$DEST/${DOMAIN}.responses.ts" 2>/dev/null || true
               fi
             fi
           done

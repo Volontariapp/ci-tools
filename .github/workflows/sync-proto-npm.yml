@@ -63,10 +63,12 @@ jobs:
           if [ -z "$CHANGED_PROTOS" ]; then
             echo "No proto files changed or first commit. Generating all."
             buf generate
+            find gen/ts -name "*.ts" -exec sed -i 's/import { wrappers } from ["'\'']protobufjs["'\'']/import _m0 from "protobufjs"; const { wrappers } = _m0/g' {} +
             DOMAINS="user post event common"
           else
             echo "Changed protos: $CHANGED_PROTOS"
             buf generate
+            find gen/ts -name "*.ts" -exec sed -i 's/import { wrappers } from ["'\'']protobufjs["'\'']/import _m0 from "protobufjs"; const { wrappers } = _m0/g' {} +
             DOMAINS=$(echo "$CHANGED_PROTOS" | grep -o '^proto/volontariapp/[^/]*' | cut -d'/' -f3 | sort | uniq | tr '\n' ' ')
             echo "Domains to update: $DOMAINS"
           fi

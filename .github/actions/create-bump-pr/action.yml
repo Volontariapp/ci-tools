@@ -79,4 +79,5 @@ runs:
         git commit -m "chore: inject PR link into changelogs"
         git push origin "$BRANCH_NAME"
 
-        gh pr merge "$PR_URL" --auto --squash
+        sleep 5
+        gh pr merge "$PR_URL" --squash --admin --delete-branch

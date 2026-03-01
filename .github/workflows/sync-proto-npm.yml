@@ -40,6 +40,7 @@ jobs:
           repository: ${{ inputs.proto_repository }}
           token: ${{ secrets.ORG_REPO_TOKEN }}
           path: proto-registry
+          fetch-depth: 2
 
       - name: Setup Node & Yarn
         uses: Volontariapp/ci-tools/.github/actions/setup-node-yarn@main
@@ -53,9 +54,6 @@ jobs:
       - name: Generate TypeScript types
         run: |
           cd proto-registry
-          
-          # Detect changed proto files to optimize code generation
-          # Fallback to generating all domains if git diff fails or is empty
           CHANGED_PROTOS=$(git diff --name-only HEAD~1 HEAD | grep '\.proto$' || true)
           
           if [ -z "$CHANGED_PROTOS" ]; then
@@ -65,23 +63,22 @@ jobs:
           else
             echo "Changed protos: $CHANGED_PROTOS"
             buf generate
-            # Extract unique domains from changed files
             DOMAINS=$(echo "$CHANGED_PROTOS" | grep -o '^proto/volontariapp/[^/]*' | cut -d'/' -f3 | sort | uniq | tr '\n' ' ')
             echo "Domains to update: $DOMAINS"
           fi
           
           for DOMAIN in $DOMAINS; do
-            if [ -n "$DOMAIN" ] && [ -d "gen/ts/volontariapp/$DOMAIN/v1" ]; then
+            if [ -n "$DOMAIN" ] && [ -d "gen/ts/volontariapp/$DOMAIN" ]; then
               DEST="../npm-packages/packages/contracts/src/$DOMAIN"
               mkdir -p "$DEST"
               
               if [ "$DOMAIN" = "common" ]; then
-                cp gen/ts/volontariapp/$DOMAIN/v1/pagination.ts "$DEST/pagination.types.ts" 2>/dev/null || true
+                cp gen/ts/volontariapp/$DOMAIN/pagination.ts "$DEST/pagination.types.ts" 2>/dev/null || true
               else
-                cp gen/ts/volontariapp/$DOMAIN/v1/${DOMAIN}.ts "$DEST/${DOMAIN}.types.ts" 2>/dev/null || true
-                cp gen/ts/volontariapp/$DOMAIN/v1/${DOMAIN}_request.ts "$DEST/${DOMAIN}.requests.ts" 2>/dev/null || true
-                cp gen/ts/volontariapp/$DOMAIN/v1/${DOMAIN}_response.ts "$DEST/${DOMAIN}.responses.ts" 2>/dev/null || true
-                cp gen/ts/volontariapp/$DOMAIN/v1/${DOMAIN}_service.ts "$DEST/${DOMAIN}.services.ts" 2>/dev/null || true
+                cp gen/ts/volontariapp/$DOMAIN/${DOMAIN}.ts "$DEST/${DOMAIN}.types.ts" 2>/dev/null || true
+                cp gen/ts/volontariapp/$DOMAIN/${DOMAIN}_request.ts "$DEST/${DOMAIN}.requests.ts" 2>/dev/null || true
+                cp gen/ts/volontariapp/$DOMAIN/${DOMAIN}_response.ts "$DEST/${DOMAIN}.responses.ts" 2>/dev/null || true
+                cp gen/ts/volontariapp/$DOMAIN/${DOMAIN}_service.ts "$DEST/${DOMAIN}.services.ts" 2>/dev/null || true
               fi
             fi
           done

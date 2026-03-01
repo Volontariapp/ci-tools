@@ -96,7 +96,11 @@ jobs:
             if [ -f CHANGELOG.md ]; then
               perl -pi -e 's/(All notable changes.*)/$1\n\n## ['"$NEW_VERSION"'] - '"$DATE"'\n\n### Changed\n\n- Auto-generated proto typings updated.\n/g' CHANGELOG.md
 
-              echo "[$NEW_VERSION]: https://github.com/Volontariapp/npm-packages/pull/PR_PLACEHOLDER" >> CHANGELOG.md
+              if grep -q '^\[.*\].*github.com' CHANGELOG.md; then
+                awk -v newlink="[$NEW_VERSION]: https://github.com/Volontariapp/npm-packages/pull/PR_PLACEHOLDER" '/^\[.*\]: / && !inserted {print newlink; inserted=1} 1' CHANGELOG.md > CHANGELOG.tmp && mv CHANGELOG.tmp CHANGELOG.md
+              else
+                echo "[$NEW_VERSION]: https://github.com/Volontariapp/npm-packages/pull/PR_PLACEHOLDER" >> CHANGELOG.md
+              fi
             else
               echo -e "# Changelog\n\nAll notable changes to this project will be documented in this file.\n\n## [$NEW_VERSION] - $DATE\n\n### Changed\n\n- Auto-generated proto typings updated.\n\n[$NEW_VERSION]: https://github.com/Volontariapp/npm-packages/pull/PR_PLACEHOLDER" > CHANGELOG.md
             fi

@@ -65,7 +65,9 @@ jobs:
           cp -r gen/ts/volontariapp/post/v1/* ../npm-packages/packages/domain-post/src/contracts/ || true
           cp -r gen/ts/volontariapp/event/v1/* ../npm-packages/packages/domain-event/src/contracts/ || true
 
-      - name: Check modifications and bump versions
+      - name: Check modifications, bump versions, and create PR
+        env:
+          GH_TOKEN: ${{ secrets.ORG_REPO_TOKEN }}
         run: |
           cd npm-packages
 
@@ -78,26 +80,47 @@ jobs:
 
           echo "Changes detected in: $CHANGED_PKGS"
 
+          BRANCH_NAME="bot/sync-proto-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git checkout -b "$BRANCH_NAME"
+
           for PKG in $CHANGED_PKGS; do
             echo "Bumping version for $PKG..."
             cd "$PKG"
 
-            NEW_VERSION=$(npm version patch --no-git-tag-version)
+            # Use --loglevel=error to prevent npm output from polluting versions
+            npm version patch --no-git-tag-version --loglevel=error > /dev/null
+            NEW_VERSION=$(node -p "require('./package.json').version")
 
             DATE=$(date +%Y-%m-%d)
-            CHANGELOG_ENTRY="## [${NEW_VERSION#v}] - $DATE\n### Changed\n- Auto-generated proto typings updated\n\n"
 
             if [ -f CHANGELOG.md ]; then
-              echo -e "$CHANGELOG_ENTRY$(cat CHANGELOG.md)" > CHANGELOG.md
+              perl -pi -e 's/(All notable changes.*)/$1\n\n## ['"$NEW_VERSION"'] - '"$DATE"'\n\n### Changed\n\n- Auto-generated proto typings updated.\n/g' CHANGELOG.md
+
+              echo "[$NEW_VERSION]: https://github.com/Volontariapp/npm-packages/pull/PR_PLACEHOLDER" >> CHANGELOG.md
             else
-              echo -e "# Changelog\n\n$CHANGELOG_ENTRY" > CHANGELOG.md
+              echo -e "# Changelog\n\nAll notable changes to this project will be documented in this file.\n\n## [$NEW_VERSION] - $DATE\n\n### Changed\n\n- Auto-generated proto typings updated.\n\n[$NEW_VERSION]: https://github.com/Volontariapp/npm-packages/pull/PR_PLACEHOLDER" > CHANGELOG.md
             fi
 
             cd ../..
           done
 
           git add packages/
-          git commit -m "chore(proto): auto-update typings and bump versions"
+          git commit -m "chore(proto): auto-update typings and prepare release"
+          git push -u origin "$BRANCH_NAME"
 
-          echo "Pushing changes to NPM Packages repository..."
-          git push origin HEAD:main
+          PR_URL=$(gh pr create --title "chore: sync proto typings" --body "Auto-generated proto typings update." --head "$BRANCH_NAME" --base main)
+          echo "Created PR: $PR_URL"
+
+          PR_NUMBER=$(echo "$PR_URL" | awk -F'/' '{print $NF}')
+
+          for PKG in $CHANGED_PKGS; do
+            if [ -f "$PKG/CHANGELOG.md" ]; then
+              sed -i "s/PR_PLACEHOLDER/$PR_NUMBER/g" "$PKG/CHANGELOG.md"
+            fi
+          done
+
+          git add packages/
+          git commit -m "chore: inject PR link into changelogs"
+          git push origin "$BRANCH_NAME"
+
+          gh pr merge "$PR_URL" --auto --squash

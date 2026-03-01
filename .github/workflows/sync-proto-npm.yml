@@ -51,6 +51,10 @@ jobs:
         run: |
           npm install -g @bufbuild/buf ts-proto
 
+      - name: Lint Proto files
+        run: buf lint
+        working-directory: proto-registry
+
       - name: Generate TypeScript types
         run: |
           cd proto-registry

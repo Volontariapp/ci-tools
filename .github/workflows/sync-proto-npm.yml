@@ -71,6 +71,9 @@ jobs:
             echo "Domains to update: $DOMAINS"
           fi
 
+          mkdir -p ../npm-packages/packages/contracts/proto/volontariapp
+          cp -r proto/volontariapp/* ../npm-packages/packages/contracts/proto/volontariapp/
+
           for DOMAIN in $DOMAINS; do
             if [ -n "$DOMAIN" ] && [ -d "gen/ts/volontariapp/$DOMAIN" ]; then
               DEST="../npm-packages/packages/contracts/src/$DOMAIN"

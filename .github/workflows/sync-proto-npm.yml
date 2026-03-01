@@ -78,6 +78,7 @@ jobs:
                 cp gen/ts/volontariapp/$DOMAIN/${DOMAIN}.ts "$DEST/${DOMAIN}.ts" 2>/dev/null || true
                 cp gen/ts/volontariapp/$DOMAIN/${DOMAIN}.requests.ts "$DEST/${DOMAIN}.requests.ts" 2>/dev/null || true
                 cp gen/ts/volontariapp/$DOMAIN/${DOMAIN}.responses.ts "$DEST/${DOMAIN}.responses.ts" 2>/dev/null || true
+                cp gen/ts/volontariapp/$DOMAIN/${DOMAIN}.services.ts "$DEST/${DOMAIN}.services.ts" 2>/dev/null || true
               fi
             fi
           done

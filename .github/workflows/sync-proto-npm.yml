@@ -78,20 +78,15 @@ jobs:
           find gen/ts -name "*.ts" -exec sed -i 's/import { wrappers } from ["'\'']protobufjs["'\'']/import _m0 from "protobufjs"; const { wrappers } = _m0/g' {} +
 
           PKG_ROOT="../npm-packages/packages/contracts"
-          PROTO_DEST="$PKG_ROOT/proto"
-          SRC_DEST="$PKG_ROOT/src"
+          SRC_DEST="$PKG_ROOT/src" # Define SRC_DEST here
 
-          if [ -L "$PROTO_DEST" ]; then
-            echo "Removing symlink $PROTO_DEST"
-            rm -f "$PROTO_DEST"
-          fi
-          mkdir -p "$PROTO_DEST/volontariapp"
-          cp -r proto/volontariapp/* "$PROTO_DEST/volontariapp/"
-
+          # Sync TS types for each domain
           for DOMAIN in $DOMAINS; do
             if [ -n "$DOMAIN" ] && [ -d "gen/ts/volontariapp/$DOMAIN" ]; then
               DOMAIN_DEST="$SRC_DEST/$DOMAIN"
               mkdir -p "$DOMAIN_DEST"
+              # Clean generated files only, preserve manual files like index.ts
+              # Only delete files that match naming patterns of generated files
               find "$DOMAIN_DEST" -type f -name "*.ts" ! -name "index.ts" -delete
               cp gen/ts/volontariapp/$DOMAIN/*.ts "$DOMAIN_DEST/" 2>/dev/null || true
             fi

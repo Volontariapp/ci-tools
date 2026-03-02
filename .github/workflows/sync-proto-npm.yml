@@ -85,15 +85,14 @@ jobs:
             echo "Removing symlink $PROTO_DEST"
             rm -f "$PROTO_DEST"
           fi
-          rm -rf "$PROTO_DEST"
-          mkdir -p "$PROTO_DEST"
-          cp -r proto/* "$PROTO_DEST/"
+          mkdir -p "$PROTO_DEST/volontariapp"
+          cp -r proto/volontariapp/* "$PROTO_DEST/volontariapp/"
 
           for DOMAIN in $DOMAINS; do
             if [ -n "$DOMAIN" ] && [ -d "gen/ts/volontariapp/$DOMAIN" ]; then
               DOMAIN_DEST="$SRC_DEST/$DOMAIN"
               mkdir -p "$DOMAIN_DEST"
-              rm -f "$DOMAIN_DEST"/*.ts
+              find "$DOMAIN_DEST" -type f -name "*.ts" ! -name "index.ts" -delete
               cp gen/ts/volontariapp/$DOMAIN/*.ts "$DOMAIN_DEST/" 2>/dev/null || true
             fi
           done
@@ -101,7 +100,7 @@ jobs:
           if [ -d "gen/ts/google/protobuf" ]; then
             GOOGLE_DEST="$SRC_DEST/google/protobuf"
             mkdir -p "$GOOGLE_DEST"
-            rm -f "$GOOGLE_DEST"/*.ts
+            find "$GOOGLE_DEST" -type f -name "*.ts" ! -name "index.ts" -delete
             cp gen/ts/google/protobuf/*.ts "$GOOGLE_DEST/"
           fi
 

@@ -77,25 +77,32 @@ jobs:
 
           find gen/ts -name "*.ts" -exec sed -i 's/import { wrappers } from ["'\'']protobufjs["'\'']/import _m0 from "protobufjs"; const { wrappers } = _m0/g' {} +
 
-          PROTO_DEST_ROOT="../npm-packages/packages/contracts/proto"
-          if [ -L "$PROTO_DEST_ROOT" ]; then
-            echo "Removing symlink $PROTO_DEST_ROOT"
-            rm -f "$PROTO_DEST_ROOT"
+          PKG_ROOT="../npm-packages/packages/contracts"
+          PROTO_DEST="$PKG_ROOT/proto"
+          SRC_DEST="$PKG_ROOT/src"
+
+          if [ -L "$PROTO_DEST" ]; then
+            echo "Removing symlink $PROTO_DEST"
+            rm -f "$PROTO_DEST"
           fi
-          mkdir -p "$PROTO_DEST_ROOT/volontariapp"
-          cp -r proto/volontariapp/* "$PROTO_DEST_ROOT/volontariapp/"
+          rm -rf "$PROTO_DEST"
+          mkdir -p "$PROTO_DEST"
+          cp -r proto/* "$PROTO_DEST/"
 
           for DOMAIN in $DOMAINS; do
             if [ -n "$DOMAIN" ] && [ -d "gen/ts/volontariapp/$DOMAIN" ]; then
-              DEST="../npm-packages/packages/contracts/src/$DOMAIN"
-              mkdir -p "$DEST"
-              cp gen/ts/volontariapp/$DOMAIN/*.ts "$DEST/" 2>/dev/null || true
+              DOMAIN_DEST="$SRC_DEST/$DOMAIN"
+              mkdir -p "$DOMAIN_DEST"
+              rm -f "$DOMAIN_DEST"/*.ts
+              cp gen/ts/volontariapp/$DOMAIN/*.ts "$DOMAIN_DEST/" 2>/dev/null || true
             fi
           done
 
           if [ -d "gen/ts/google/protobuf" ]; then
-            mkdir -p ../npm-packages/packages/contracts/src/google/protobuf
-            cp gen/ts/google/protobuf/*.ts ../npm-packages/packages/contracts/src/google/protobuf/
+            GOOGLE_DEST="$SRC_DEST/google/protobuf"
+            mkdir -p "$GOOGLE_DEST"
+            rm -f "$GOOGLE_DEST"/*.ts
+            cp gen/ts/google/protobuf/*.ts "$GOOGLE_DEST/"
           fi
 
       - name: Check modifications, bump versions, and create PR

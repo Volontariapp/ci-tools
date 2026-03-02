@@ -58,39 +58,45 @@ jobs:
       - name: Generate TypeScript types
         run: |
           cd proto-registry
+
+          rm -rf gen/ts
+
           CHANGED_PROTOS=$(git diff --name-only HEAD~1 HEAD -- '*.proto' 2>/dev/null || true)
 
           if [ -z "$CHANGED_PROTOS" ]; then
             echo "No proto files changed or first commit. Generating all."
             buf generate
-            find gen/ts -name "*.ts" -exec sed -i 's/import { wrappers } from ["'\'']protobufjs["'\'']/import _m0 from "protobufjs"; const { wrappers } = _m0/g' {} +
             DOMAINS="user post event common"
           else
             echo "Changed protos: $CHANGED_PROTOS"
             buf generate
-            find gen/ts -name "*.ts" -exec sed -i 's/import { wrappers } from ["'\'']protobufjs["'\'']/import _m0 from "protobufjs"; const { wrappers } = _m0/g' {} +
             DOMAINS=$(echo "$CHANGED_PROTOS" | grep -o '^proto/volontariapp/[^/]*' | cut -d'/' -f3 | sort | uniq | tr '\n' ' ')
+            DOMAINS="$DOMAINS common"
             echo "Domains to update: $DOMAINS"
           fi
 
-          mkdir -p ../npm-packages/packages/contracts/proto/volontariapp
-          cp -r proto/volontariapp/* ../npm-packages/packages/contracts/proto/volontariapp/
+          find gen/ts -name "*.ts" -exec sed -i 's/import { wrappers } from ["'\'']protobufjs["'\'']/import _m0 from "protobufjs"; const { wrappers } = _m0/g' {} +
+
+          PROTO_DEST_ROOT="../npm-packages/packages/contracts/proto"
+          if [ -L "$PROTO_DEST_ROOT" ]; then
+            echo "Removing symlink $PROTO_DEST_ROOT"
+            rm -f "$PROTO_DEST_ROOT"
+          fi
+          mkdir -p "$PROTO_DEST_ROOT/volontariapp"
+          cp -r proto/volontariapp/* "$PROTO_DEST_ROOT/volontariapp/"
 
           for DOMAIN in $DOMAINS; do
             if [ -n "$DOMAIN" ] && [ -d "gen/ts/volontariapp/$DOMAIN" ]; then
               DEST="../npm-packages/packages/contracts/src/$DOMAIN"
               mkdir -p "$DEST"
-
-              if [ "$DOMAIN" = "common" ]; then
-                cp gen/ts/volontariapp/$DOMAIN/pagination.ts "$DEST/pagination.ts" 2>/dev/null || true
-              else
-                cp gen/ts/volontariapp/$DOMAIN/${DOMAIN}.ts "$DEST/${DOMAIN}.ts" 2>/dev/null || true
-                cp gen/ts/volontariapp/$DOMAIN/${DOMAIN}.requests.ts "$DEST/${DOMAIN}.requests.ts" 2>/dev/null || true
-                cp gen/ts/volontariapp/$DOMAIN/${DOMAIN}.responses.ts "$DEST/${DOMAIN}.responses.ts" 2>/dev/null || true
-                cp gen/ts/volontariapp/$DOMAIN/${DOMAIN}.services.ts "$DEST/${DOMAIN}.services.ts" 2>/dev/null || true
-              fi
+              cp gen/ts/volontariapp/$DOMAIN/*.ts "$DEST/" 2>/dev/null || true
             fi
           done
+
+          if [ -d "gen/ts/google/protobuf" ]; then
+            mkdir -p ../npm-packages/packages/contracts/src/google/protobuf
+            cp gen/ts/google/protobuf/*.ts ../npm-packages/packages/contracts/src/google/protobuf/
+          fi
 
       - name: Check modifications, bump versions, and create PR
         uses: Volontariapp/ci-tools/.github/actions/create-bump-pr@main

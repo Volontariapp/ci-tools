@@ -1,6 +1,6 @@
 # CI Tools
 
-This repository acts as the central hub for Volontariapp's Continuous Integration (CI) and Continuous Deployment (CD) workflows. 
+This repository acts as the central hub for Volontariapp's Continuous Integration (CI) and Continuous Deployment (CD) workflows.
 It houses all the reusable GitHub Actions, workflows, and global synchronized logic for our microservices and shared libraries.
 
 ## 🎯 Purpose
@@ -23,6 +23,7 @@ This `ci-tools` repository solves this by extracting the common CI configuration
   It abstracts away the complexity of configuring Corepack and specific `node-version` rules.
 
   **Usage example**:
+
   ```yaml
   - name: Setup Node & Yarn
     uses: Volontariapp/ci-tools/.github/actions/setup-node-yarn@main
@@ -30,34 +31,59 @@ This `ci-tools` repository solves this by extracting the common CI configuration
       node-version: 24.14.0
   ```
 
-### Monitoring (`docker-compose.yml`)
+### Infrastructure & Monitoring (`docker-compose.yml`)
 
-The repository includes a pre-configured observability stack using **OpenTelemetry Collector** and **Jaeger v2**.
-Both services are placed behind a Docker Compose **profile** called `monitoring`, meaning they will **not** start with a regular `docker compose up`.
+This repository includes a complete local development infrastructure and observability stack.
 
-#### Starting the monitoring stack
+#### 🗄️ Databases
+
+We use a dedicated pair of PostgreSQL and Neo4j for each microservice to ensure complete isolation:
+
+| Service    | Postgres Port | Neo4j (HTTP/Bolt) |
+| ---------- | ------------- | ----------------- |
+| `ms-user`  | `5432`        | `7474` / `7687`   |
+| `ms-post`  | `5433`        | `7475` / `7688`   |
+| `ms-event` | `5434`        | `7476` / `7689`   |
+
+#### 📊 Observability Stack
+
+The monitoring stack includes **Grafana**, **Prometheus**, **OpenTelemetry Collector**, and **Jaeger**.
+These services are placed behind a Docker Compose **profile** called `monitoring`.
+
+##### Starting the stack
 
 ```bash
+# Start only databases
+docker compose up -d
+
+# Start databases + monitoring stack
 docker compose --profile monitoring up -d
 ```
 
-#### Stopping the monitoring stack
+##### Available UIs
 
-```bash
-docker compose --profile monitoring down
-```
+| Service        | URL                                              | Description                                       |
+| -------------- | ------------------------------------------------ | ------------------------------------------------- |
+| **Grafana**    | [http://localhost:3000](http://localhost:3000)   | Dashboards & Status Page (Admin: `admin`/`admin`) |
+| **Jaeger UI**  | [http://localhost:16686](http://localhost:16686) | Trace visualization and search                    |
+| **Prometheus** | [http://localhost:9090](http://localhost:9090)   | Metrics exploration & scraping                    |
 
-#### Available UIs
+#### 🩺 Health Checks & Status Page
 
-| Service | URL | Description |
-|---------|-----|-------------|
-| Jaeger UI | [http://localhost:16686](http://localhost:16686) | Trace visualization and search |
+Every service is equipped with automated health checks (`healthcheck`).
+A pre-configured **Grafana Status Page** is available at startup, providing:
 
-#### Architecture
+- **Real-time Status**: UP/DOWN detection for all databases and core services.
+- **Uptime History**: State timeline bands showing availability over time.
+
+#### 🏗️ Architecture
 
 ```
 Your App ──OTLP──▶ OTel Collector ──OTLP──▶ Jaeger
-                   (localhost:4317)          (localhost:16686)
+    │               (localhost:4317)          (localhost:16686)
+    │
+    └─▶ Databases ◀──Prometheus (Scraping) ◀──Grafana (Dashboard)
+        (PG/Neo4j)      (localhost:9090)        (localhost:3000)
 ```
 
-The **OTel Collector** receives traces, metrics, and logs via OTLP (gRPC `:4317` / HTTP `:4318`), then forwards traces to **Jaeger** for visualization. The collector configuration lives in `monitoring/otel-collector-config.yaml`.
+The **OTel Collector** receives traces via OTLP and forwards them to **Jaeger**. **Prometheus** monitors service connectivity via **Blackbox Exporter** (TCP probes) and direct metrics scraping, which are then visualized in **Grafana**.

@@ -1,0 +1,34 @@
+global:
+  scrape_interval: 10s
+  evaluation_interval: 10s
+
+scrape_configs:
+  - job_name: "http-services"
+    static_configs:
+      - targets:
+          - "otel-collector:8888"
+          - "jaeger:16686"
+          - "grafana:3000"
+          - "prometheus:9090"
+          - "blackbox-exporter:9115"
+
+  - job_name: "databases"
+    metrics_path: /probe
+    params:
+      module: [tcp_connect]
+    static_configs:
+      - targets:
+          - "postgres-user:5432"
+          - "neo4j-user:7687"
+          - "postgres-post:5432"
+          - "neo4j-post:7687"
+          - "postgres-event:5432"
+          - "neo4j-event:7687"
+          - "otel-collector:4317"
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115

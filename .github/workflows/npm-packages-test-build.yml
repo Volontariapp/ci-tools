@@ -35,9 +35,7 @@ jobs:
         run: cd packages/${{ matrix.package }} && yarn workspaces focus
 
       - name: Build Package
-        run: |
-          PKG_NAME=$(node -p "require('./packages/${{ matrix.package }}/package.json').name")
-          yarn workspaces foreach -Rt --from "$PKG_NAME" run build
+        run: cd packages/${{ matrix.package }} && yarn build
 
       - name: Test Package
         run: cd packages/${{ matrix.package }} && yarn test

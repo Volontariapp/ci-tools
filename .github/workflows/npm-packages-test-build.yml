@@ -39,5 +39,11 @@ jobs:
           PKG_NAME=$(node -p "require('./packages/${{ matrix.package }}/package.json').name")
           yarn workspaces foreach -Rt --from "$PKG_NAME" run build
 
+      - name: Build Test Database
+        run: docker compose -f ci-tools/docker-compose.yml --profile test build test-db
+
+      - name: Setup Test Database
+        run: docker compose -f ci-tools/docker-compose.yml --profile test up -d --wait test-db
+
       - name: Test Package
         run: cd packages/${{ matrix.package }} && yarn test

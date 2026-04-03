@@ -8,10 +8,13 @@ on:
         required: false
         default: '24.14.0'
         type: string
+      service-name:
+        required: true
+        type: string
 
 jobs:
   check:
-    name: Build & Test
+    name: Build & Test (${{ inputs.service-name }})
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code

@@ -1,0 +1,33 @@
+name: 'Service CI'
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: 'Node.js version'
+        required: false
+        default: '24.14.0'
+        type: string
+
+jobs:
+  check:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node & Yarn
+        uses: Volontariapp/ci-tools/.github/actions/setup-node-yarn@main
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: 'yarn'
+
+      - name: Install Dependencies
+        run: yarn install --immutable
+
+      - name: Check Build
+        run: yarn build
+
+      - name: Run Tests
+        run: yarn test

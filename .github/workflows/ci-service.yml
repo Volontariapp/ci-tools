@@ -57,27 +57,22 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git config --global url."https://x-access-token:${{ secrets.ORG_REPO_TOKEN }}@github.com/".insteadOf "git@github.com:"
 
       - name: Update service submodule in deploy repository
         env:
           ORG_REPO_TOKEN: ${{ secrets.ORG_REPO_TOKEN }}
+          DEPLOY_REPO: "Volontariapp/deploy"
+          SERVICE: "${{ inputs.service-name }}"
+          SERVICE_SHA: "${{ github.sha }}"
         run: |
-          DEPLOY_REPO="Volontariapp/deploy"
-          SERVICE="${{ inputs.service-name }}"
-          SERVICE_SHA="${{ github.sha }}"
-
-          echo "--- DEBUG: git ls-remote using token (will not print token) ---"
-          git ls-remote https://x-access-token:$ORG_REPO_TOKEN@github.com/${DEPLOY_REPO}.git || true
-
-          git clone --recursive https://x-access-token:${{ secrets.ORG_REPO_TOKEN }}@github.com/${DEPLOY_REPO}.git deploy
+          git clone --recursive "https://x-access-token:${ORG_REPO_TOKEN}@github.com/${DEPLOY_REPO}.git" deploy
           cd deploy
+          git remote set-url origin "https://x-access-token:${ORG_REPO_TOKEN}@github.com/${DEPLOY_REPO}.git"
 
           if [ ! -d "$SERVICE" ]; then
             echo "No matching submodule path '$SERVICE' in deploy repository, skipping."
             exit 1
           fi
-
           git submodule update --init --recursive "$SERVICE"
 
           git -C "$SERVICE" fetch origin "$SERVICE_SHA"
@@ -86,7 +81,7 @@ jobs:
           if ! git diff --quiet; then
             git add "$SERVICE"
             git commit -m "chore(deploy): update $SERVICE submodule"
-            git push https://x-access-token:${{ secrets.ORG_REPO_TOKEN }}@github.com/${DEPLOY_REPO}.git main
+            git push origin main
           else
             echo "No deploy submodule change for $SERVICE"
           fi

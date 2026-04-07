@@ -62,23 +62,32 @@ jobs:
         env:
           ORG_REPO_TOKEN: ${{ secrets.ORG_REPO_TOKEN }}
           DEPLOY_REPO: "Volontariapp/deploy"
-          SERVICE: "${{ inputs.service-name }}"
+          SERVICE: "${{ github.event.repository.name }}"
           SERVICE_SHA: "${{ github.sha }}"
         run: |
-          git clone --recursive "https://x-access-token:${ORG_REPO_TOKEN}@github.com/${DEPLOY_REPO}.git" deploy
+          if [ -z "$ORG_REPO_TOKEN" ]; then
+            echo "ORG_REPO_TOKEN is empty or not available in this workflow run."
+            echo "Please ensure you pass it to the workflow (e.g., using 'secrets: inherit' in the caller)."
+            exit 1
+          fi
+
+          git clone "https://github.com/${DEPLOY_REPO}.git" deploy
           cd deploy
-          git remote set-url origin "https://x-access-token:${ORG_REPO_TOKEN}@github.com/${DEPLOY_REPO}.git"
+          git remote set-url origin "https://github.com/${DEPLOY_REPO}.git"
+
+          git config url."https://x-access-token:${ORG_REPO_TOKEN}@github.com/".insteadOf "git@github.com:"
+          git config url."https://x-access-token:${ORG_REPO_TOKEN}@github.com/".insteadOf "https://github.com/"
 
           if [ ! -d "$SERVICE" ]; then
             echo "No matching submodule path '$SERVICE' in deploy repository, skipping."
             exit 1
           fi
-          git submodule update --init --recursive "$SERVICE"
 
+          git submodule update --init "$SERVICE"
           git -C "$SERVICE" fetch origin "$SERVICE_SHA"
           git -C "$SERVICE" checkout "$SERVICE_SHA"
 
-          if ! git diff --quiet; then
+          if ! git diff --quiet "$SERVICE"; then
             git add "$SERVICE"
             git commit -m "chore(deploy): update $SERVICE submodule"
             git push origin main

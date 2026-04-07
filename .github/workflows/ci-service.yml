@@ -20,9 +20,6 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Check for temporary versions
-        uses: Volontariapp/ci-tools/.github/actions/validate-package-versions@main
-
       - name: Setup Node & Yarn
         uses: Volontariapp/ci-tools/.github/actions/setup-node-yarn@main
         with:
@@ -37,3 +34,13 @@ jobs:
 
       - name: Run Tests
         run: yarn test
+
+  validate-versions:
+    name: Validate Versions (${{ inputs.service-name }})
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Check for temporary versions
+        uses: Volontariapp/ci-tools/.github/actions/validate-package-versions@main

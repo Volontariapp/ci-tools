@@ -37,7 +37,8 @@ jobs:
             if ! git diff --quiet; then
               git add ci-tools
               git commit -m "chore: update ci-tools to latest version"
-              git push https://x-access-token:$ORG_REPO_TOKEN@github.com/Volontariapp/$repo.git main
+              git remote set-url origin "https://x-access-token:${ORG_REPO_TOKEN}@github.com/Volontariapp/${repo}.git"
+              git push origin main
             else
               echo "No changes for $repo"
             fi

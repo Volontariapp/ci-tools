@@ -53,40 +53,43 @@ jobs:
       - validate-versions
     if: github.ref == 'refs/heads/main'
     steps:
-      - name: Setup Git Configuration
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git config --global url."https://x-access-token:${{ secrets.ORG_REPO_TOKEN }}@github.com/".insteadOf "git@github.com:"
+      - name: Checkout Deploy Repository
+        uses: actions/checkout@v4
+        with:
+          repository: Volontariapp/deploy
+          token: ${{ secrets.ORG_REPO_TOKEN }}
+          path: deploy
 
       - name: Update service submodule in deploy repository
         env:
           ORG_REPO_TOKEN: ${{ secrets.ORG_REPO_TOKEN }}
+          SERVICE: "${{ github.event.repository.name }}"
+          SERVICE_SHA: "${{ github.sha }}"
         run: |
-          DEPLOY_REPO="Volontariapp/deploy"
-          SERVICE="${{ inputs.service-name }}"
-          SERVICE_SHA="${{ github.sha }}"
+          if [ -z "$ORG_REPO_TOKEN" ]; then
+            echo "ORG_REPO_TOKEN is empty. Ensure 'secrets: inherit' is used in the caller workflow."
+            exit 1
+          fi
 
-          echo "--- DEBUG: git ls-remote using token (will not print token) ---"
-          git ls-remote https://x-access-token:$ORG_REPO_TOKEN@github.com/${DEPLOY_REPO}.git || true
-
-          git clone --recursive https://x-access-token:${{ secrets.ORG_REPO_TOKEN }}@github.com/${DEPLOY_REPO}.git deploy
           cd deploy
+          
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global url."https://x-access-token:${ORG_REPO_TOKEN}@github.com/".insteadOf "git@github.com:"
 
           if [ ! -d "$SERVICE" ]; then
             echo "No matching submodule path '$SERVICE' in deploy repository, skipping."
             exit 1
           fi
 
-          git submodule update --init --recursive "$SERVICE"
-
+          git submodule update --init "$SERVICE"
           git -C "$SERVICE" fetch origin "$SERVICE_SHA"
           git -C "$SERVICE" checkout "$SERVICE_SHA"
 
-          if ! git diff --quiet; then
+          if ! git diff --quiet "$SERVICE"; then
             git add "$SERVICE"
-            git commit -m "chore(deploy): update $SERVICE submodule"
-            git push https://x-access-token:${{ secrets.ORG_REPO_TOKEN }}@github.com/${DEPLOY_REPO}.git main
+            git commit -m "chore(deploy): update $SERVICE submodule to ${SERVICE_SHA:0:7}"
+            git push origin main
           else
             echo "No deploy submodule change for $SERVICE"
           fi

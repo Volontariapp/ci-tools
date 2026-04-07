@@ -16,13 +16,20 @@ jobs:
           git config --global url."https://x-access-token:${{ secrets.ORG_REPO_TOKEN }}@github.com/".insteadOf "git@github.com:"
 
       - name: Update each Service and Push
+        env:
+          ORG_REPO_TOKEN: ${{ secrets.ORG_REPO_TOKEN }}
         run: |
+          if [ -z "$ORG_REPO_TOKEN" ]; then
+            echo "ORG_REPO_TOKEN is empty or not available in this workflow run."
+            exit 1
+          fi
+
           SERVICES=("api-gateway" "ms-event" "ms-post" "ms-user" "nativapp" "npm-packages" "changelog-checker" "proto-registry")
 
           for repo in "${SERVICES[@]}"; do
             echo "Processing $repo..."
 
-            git clone --recursive https://x-access-token:${{ secrets.ORG_REPO_TOKEN }}@github.com/Volontariapp/$repo.git $repo
+            git clone --recursive https://x-access-token:$ORG_REPO_TOKEN@github.com/Volontariapp/$repo.git $repo
             cd $repo
 
             git submodule update --remote ci-tools
@@ -30,7 +37,7 @@ jobs:
             if ! git diff --quiet; then
               git add ci-tools
               git commit -m "chore: update ci-tools to latest version"
-              git push https://x-access-token:${{ secrets.ORG_REPO_TOKEN }}@github.com/Volontariapp/$repo.git main
+              git push https://x-access-token:$ORG_REPO_TOKEN@github.com/Volontariapp/$repo.git main
             else
               echo "No changes for $repo"
             fi

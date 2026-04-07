@@ -72,7 +72,7 @@ jobs:
           fi
 
           cd deploy
-          
+
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global url."https://x-access-token:${ORG_REPO_TOKEN}@github.com/".insteadOf "git@github.com:"
@@ -89,9 +89,17 @@ jobs:
           if ! git diff --quiet "$SERVICE"; then
             git add "$SERVICE"
             git commit -m "chore(deploy): update $SERVICE submodule to ${SERVICE_SHA:0:7}"
-            git push origin main
+
+            for i in {1..5}; do
+              git pull --rebase origin main && git push origin main && break || {
+                if [ $i -eq 5 ]; then
+                  echo "Max retries reached. Push to deploy repository failed."
+                  exit 1
+                fi
+                echo "Concurrency detected on deploy repository. Retrying in $((i * 2)) seconds (attempt $i/5)..."
+                sleep $((i * 2))
+              }
+            done
           else
             echo "No deploy submodule change for $SERVICE"
           fi
-    
-    

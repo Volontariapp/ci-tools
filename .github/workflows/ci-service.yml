@@ -1,12 +1,12 @@
-name: 'Service CI'
+name: "Service CI"
 
 on:
   workflow_call:
     inputs:
       node-version:
-        description: 'Node.js version'
+        description: "Node.js version"
         required: false
-        default: '24.14.0'
+        default: "24.14.0"
         type: string
       service-name:
         required: true
@@ -21,24 +21,13 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Check for temporary versions
-        run: |
-          echo "Scanning package.json for temporary versions (-next.TIMESTAMP)..."
-          # Detects versions like 0.1.0-next.20260404161016
-          # We check specifically for -next. followed by a timestamp-like string
-          TEMP_VERSIONS=$(grep -E '"@volontariapp/[^"]+": "[^"]+-next\.[0-9]+"' package.json || true)
-          if [ ! -z "$TEMP_VERSIONS" ]; then
-            echo "❌ Error: Found temporary versions in package.json:"
-            echo "$TEMP_VERSIONS"
-            echo "Please use stable versions before merging (e.g., run 'yarn add package@latest')."
-            exit 1
-          fi
-          echo "✅ No temporary versions found."
+        uses: Volontariapp/ci-tools/.github/actions/validate-package-versions@main
 
       - name: Setup Node & Yarn
         uses: Volontariapp/ci-tools/.github/actions/setup-node-yarn@main
         with:
           node-version: ${{ inputs.node-version }}
-          cache: 'yarn'
+          cache: "yarn"
 
       - name: Install Dependencies
         run: yarn install --immutable

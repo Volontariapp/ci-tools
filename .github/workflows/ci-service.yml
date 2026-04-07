@@ -60,10 +60,49 @@ jobs:
           git config --global url."https://x-access-token:${{ secrets.ORG_REPO_TOKEN }}@github.com/".insteadOf "git@github.com:"
 
       - name: Update service submodule in deploy repository
+        env:
+          ORG_REPO_TOKEN: ${{ secrets.ORG_REPO_TOKEN }}
         run: |
           DEPLOY_REPO="Volontariapp/deploy"
           SERVICE="${{ inputs.service-name }}"
           SERVICE_SHA="${{ github.sha }}"
+
+          echo "--- DEBUG: token presence ---"
+          if [ -z "$ORG_REPO_TOKEN" ]; then
+            echo "ORG_REPO_TOKEN is NOT set in this job"
+          else
+            echo "ORG_REPO_TOKEN is set (not printing value)"
+            echo "DEBUG: checking token owner and repo access"
+            python3 - <<'PY'
+            import os,sys,json,urllib.request
+            t=os.environ.get('ORG_REPO_TOKEN')
+            if not t:
+              print('no token available')
+              sys.exit(0)
+            def fetch(url):
+              req=urllib.request.Request(url, headers={'Authorization':f'token {t}','User-Agent':'ci-debug'})
+              try:
+                with urllib.request.urlopen(req, timeout=10) as r:
+                  return json.load(r)
+              except Exception as e:
+                print('fetch failed', url, e)
+                return None
+            u=fetch('https://api.github.com/user')
+            if u:
+              print('login:', u.get('login'), 'type:', u.get('type'))
+            else:
+              print('user lookup failed')
+            repo=fetch('https://api.github.com/repos/Volontariapp/deploy')
+            if repo:
+              print('repo:', repo.get('full_name'), 'private:', repo.get('private'))
+              print('permissions keys:', list((repo.get('permissions') or {}).keys()))
+            else:
+              print('repo lookup failed')
+            PY
+          fi
+
+          echo "--- DEBUG: git ls-remote using token (will not print token) ---"
+          git ls-remote https://x-access-token:$ORG_REPO_TOKEN@github.com/${DEPLOY_REPO}.git || true
 
           git clone --recursive https://x-access-token:${{ secrets.ORG_REPO_TOKEN }}@github.com/${DEPLOY_REPO}.git deploy
           cd deploy
@@ -85,4 +124,5 @@ jobs:
           else
             echo "No deploy submodule change for $SERVICE"
           fi
+    
     

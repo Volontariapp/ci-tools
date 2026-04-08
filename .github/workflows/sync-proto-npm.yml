@@ -77,30 +77,48 @@ jobs:
 
           find gen/ts -name "*.ts" -exec sed -i 's/import { wrappers } from ["'\'']protobufjs["'\'']/import _m0 from "protobufjs"; const { wrappers } = _m0/g' {} +
 
-          PKG_ROOT="../npm-packages/packages/contracts"
-          SRC_DEST="$PKG_ROOT/src"
+          CONTRACTS_ROOT="../npm-packages/packages/contracts"
+          NEST_ROOT="../npm-packages/packages/contracts-nest"
 
+          # Sync Clean Contracts (Front-end compatible)
           for DOMAIN in $DOMAINS; do
             if [ -n "$DOMAIN" ] && [ -d "gen/ts/volontariapp/$DOMAIN" ]; then
-              DOMAIN_DEST="$SRC_DEST/$DOMAIN"
+              DOMAIN_DEST="$CONTRACTS_ROOT/src/$DOMAIN"
               mkdir -p "$DOMAIN_DEST"
               find "$DOMAIN_DEST" -type f -name "*.ts" ! -name "index.ts" -delete
+              # Copy all generated files then remove service files to keep it pure Typescript
+              cp gen/ts/volontariapp/$DOMAIN/*.ts "$DOMAIN_DEST/" 2>/dev/null || true
+              find "$DOMAIN_DEST" -name "*.services.ts" -delete
+            fi
+          done
+
+          # Sync NestJS Contracts (Full integration)
+          for DOMAIN in $DOMAINS; do
+            if [ -n "$DOMAIN" ] && [ -d "gen/ts/volontariapp/$DOMAIN" ]; then
+              DOMAIN_DEST="$NEST_ROOT/src/$DOMAIN"
+              mkdir -p "$DOMAIN_DEST"
+              find "$DOMAIN_DEST" -type f -name "*.ts" ! -name "index.ts" -delete
+              # Copy everything including NestJS decorators
               cp gen/ts/volontariapp/$DOMAIN/*.ts "$DOMAIN_DEST/" 2>/dev/null || true
             fi
           done
 
+          # Sync Google Protobuf to both
           if [ -d "gen/ts/google/protobuf" ]; then
-            GOOGLE_DEST="$SRC_DEST/google/protobuf"
-            mkdir -p "$GOOGLE_DEST"
-            find "$GOOGLE_DEST" -type f -name "*.ts" ! -name "index.ts" -delete
-            cp gen/ts/google/protobuf/*.ts "$GOOGLE_DEST/"
+            for ROOT in "$CONTRACTS_ROOT" "$NEST_ROOT"; do
+              GOOGLE_DEST="$ROOT/src/google/protobuf"
+              mkdir -p "$GOOGLE_DEST"
+              find "$GOOGLE_DEST" -type f -name "*.ts" ! -name "index.ts" -delete
+              cp gen/ts/google/protobuf/*.ts "$GOOGLE_DEST/"
+            done
           fi
 
       - name: Check modifications, bump versions, and create PR
         uses: Volontariapp/ci-tools/.github/actions/create-bump-pr@main
         with:
           github_token: ${{ secrets.ORG_REPO_TOKEN }}
-          changed_pkgs: "contracts"
-          commit_message: "chore(proto): auto-update typings and prepare release"
+          changed_pkgs: "contracts contracts-nest"
+          commit_message: "chore(proto): auto-update typings for contracts and contracts-nest"
           pr_title: "chore: sync proto typings"
-          pr_body: "Auto-generated proto typings update."
+          pr_body: "Auto-generated proto typings update for both pure contracts and NestJS integration."
+

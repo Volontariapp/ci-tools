@@ -64,11 +64,11 @@ jobs:
           # Fix protobufjs imports for ESM
           find gen/ts -name "*.ts" -exec sed -i 's/import { wrappers } from ["'\'']protobufjs["'\'']/import _m0 from "protobufjs"; const { wrappers } = _m0/g' {} +
 
-          PKG_ROOT="../npm-packages/packages/contracts"
-          PROTO_DEST="$PKG_ROOT/proto"
-          SRC_DEST="$PKG_ROOT/src"
+          CONTRACTS_ROOT="../npm-packages/packages/contracts"
+          NEST_ROOT="../npm-packages/packages/contracts-nest"
 
-          # 2. Sync ALL Proto files (Breaking symlink if it exists)
+          # 1. Sync Protos to Nest integration package (Breaking symlink if it exists)
+          PROTO_DEST="$NEST_ROOT/proto"
           if [ -L "$PROTO_DEST" ]; then
             rm -f "$PROTO_DEST"
           fi
@@ -76,31 +76,44 @@ jobs:
           mkdir -p "$PROTO_DEST"
           cp -r proto/* "$PROTO_DEST/"
 
-          # 3. Sync ALL TS types (Full reset of domains)
+          # 2. Sync Clean Contracts (Front-end compatible)
           DOMAINS="user post event common"
           for DOMAIN in $DOMAINS; do
             if [ -d "gen/ts/volontariapp/$DOMAIN" ]; then
-              DOMAIN_DEST="$SRC_DEST/$DOMAIN"
+              DOMAIN_DEST="$CONTRACTS_ROOT/src/$DOMAIN"
               mkdir -p "$DOMAIN_DEST"
-              # Clean only generated .ts files, keep index.ts
+              find "$DOMAIN_DEST" -type f -name "*.ts" ! -name "index.ts" -delete
+              # Copy then remove services
+              cp gen/ts/volontariapp/$DOMAIN/*.ts "$DOMAIN_DEST/"
+              find "$DOMAIN_DEST" -name "*.services.ts" -delete
+            fi
+          done
+
+          # 3. Sync NestJS Contracts (Full integration)
+          for DOMAIN in $DOMAINS; do
+            if [ -d "gen/ts/volontariapp/$DOMAIN" ]; then
+              DOMAIN_DEST="$NEST_ROOT/src/$DOMAIN"
+              mkdir -p "$DOMAIN_DEST"
               find "$DOMAIN_DEST" -type f -name "*.ts" ! -name "index.ts" -delete
               cp gen/ts/volontariapp/$DOMAIN/*.ts "$DOMAIN_DEST/"
             fi
           done
 
-          # 4. Sync Google Protos
+          # 4. Sync Google Protos to both
           if [ -d "gen/ts/google/protobuf" ]; then
-            GOOGLE_DEST="$SRC_DEST/google/protobuf"
-            mkdir -p "$GOOGLE_DEST"
-            rm -f "$GOOGLE_DEST"/*.ts
-            cp gen/ts/google/protobuf/*.ts "$GOOGLE_DEST/"
+            for ROOT in "$CONTRACTS_ROOT" "$NEST_ROOT"; do
+              GOOGLE_DEST="$ROOT/src/google/protobuf"
+              mkdir -p "$GOOGLE_DEST"
+              rm -f "$GOOGLE_DEST"/*.ts
+              cp gen/ts/google/protobuf/*.ts "$GOOGLE_DEST/"
+            done
           fi
 
       - name: Create Emergency Reset PR
         uses: Volontariapp/ci-tools/.github/actions/create-bump-pr@main
         with:
           github_token: ${{ secrets.ORG_REPO_TOKEN }}
-          changed_pkgs: "contracts"
-          commit_message: "fix(proto): emergency full reset of types and proto files"
+          changed_pkgs: "contracts contracts-nest"
+          commit_message: "fix(proto): emergency full reset of types for contracts and contracts-nest"
           pr_title: "🚨 EMERGENCY: Full Proto Reset"
-          pr_body: "This PR was triggered by the 'reset' label on a debug branch. It performs a full regeneration of all proto files and TypeScript types, including the .proto files in the contracts package."
+          pr_body: "This PR performs a full regeneration of all proto files and TypeScript types for both pure @volontariapp/contracts and NestJS @volontariapp/contracts-nest packages."

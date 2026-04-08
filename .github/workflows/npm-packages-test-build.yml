@@ -30,9 +30,11 @@ jobs:
         uses: Volontariapp/ci-tools/.github/actions/setup-node-yarn@main
         with:
           node-version: 24.14.0
+          cache: "yarn"
 
       - name: Install Dependencies
         run: cd packages/${{ matrix.package }} && yarn workspaces focus
+
 
       - name: Build Package
         run: |

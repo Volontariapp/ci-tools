@@ -40,10 +40,12 @@ jobs:
           yarn workspaces foreach -Rt --from "$PKG_NAME" run build
 
       - name: Build Test Database
-        run: docker compose -f ci-tools/docker-compose.yml --profile test build test-db
+        if: ${{ matrix.package == 'database' || matrix.package == 'bridge' || matrix.package == 'bridge-nest' }}
+        run: docker compose -f ci-tools/testing/docker-compose.yml --profile test build
 
       - name: Setup Test Database
-        run: docker compose -f ci-tools/docker-compose.yml --profile test up -d --wait test-db
+        if: ${{ matrix.package == 'database' || matrix.package == 'bridge' || matrix.package == 'bridge-nest' }}
+        run: docker compose -f ci-tools/testing/docker-compose.yml --profile test up -d --wait
 
       - name: Test Package
         run: cd packages/${{ matrix.package }} && yarn test

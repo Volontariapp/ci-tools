@@ -208,22 +208,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-  test-db:
-    image: postgres:16-alpine
-    container_name: volontariapp-test-db
-    environment:
-      POSTGRES_USER: testuser
-      POSTGRES_PASSWORD: testpassword
-      POSTGRES_DB: volontariapp_test
-    ports:
-      - "5433:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U testuser -d volontariapp_test"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    profiles:
-      - test
 
 volumes:
   postgres_user_data:

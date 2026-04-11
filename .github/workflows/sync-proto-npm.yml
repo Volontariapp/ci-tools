@@ -80,6 +80,15 @@ jobs:
           CONTRACTS_ROOT="../npm-packages/packages/contracts"
           NEST_ROOT="../npm-packages/packages/contracts-nest"
 
+          # Sync Proto files to Nest integration package ONLY
+          PROTO_DEST="$NEST_ROOT/proto"
+          if [ -L "$PROTO_DEST" ]; then
+            rm -f "$PROTO_DEST"
+          fi
+          rm -rf "$PROTO_DEST"
+          mkdir -p "$PROTO_DEST"
+          cp -r proto/* "$PROTO_DEST/"
+
           # Sync Clean Contracts (Front-end compatible)
           for DOMAIN in $DOMAINS; do
             if [ -n "$DOMAIN" ] && [ -d "gen/ts/volontariapp/$DOMAIN" ]; then

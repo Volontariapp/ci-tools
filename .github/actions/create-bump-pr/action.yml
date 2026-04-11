@@ -51,6 +51,9 @@ runs:
 
         echo "Generated changeset file: $CHANGESET_FILE"
         
+        # Ensure dependencies are installed (including changesets CLI)
+        yarn install
+
         # Run changeset version to update package.json and CHANGELOG.md files
         yarn changeset version
 

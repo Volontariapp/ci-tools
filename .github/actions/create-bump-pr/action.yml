@@ -57,24 +57,12 @@ runs:
         # Run changeset version to update package.json and CHANGELOG.md files
         yarn changeset version
 
-        git add packages/
+        git add .
         git commit -m "${{ inputs.commit_message }}"
         git push -u origin "$BRANCH_NAME"
 
         PR_URL=$(gh pr create --title "${{ inputs.pr_title }}" --body "${{ inputs.pr_body }}" --head "$BRANCH_NAME" --base main)
         echo "Created PR: $PR_URL"
-
-        PR_NUMBER=$(echo "$PR_URL" | awk -F'/' '{print $NF}')
-
-        for PKG in ${{ inputs.changed_pkgs }}; do
-          if [ -f "packages/$PKG/CHANGELOG.md" ]; then
-            sed -i "s/PR_PLACEHOLDER/$PR_NUMBER/g" "packages/$PKG/CHANGELOG.md"
-          fi
-        done
-
-        git add packages/
-        git commit -m "chore: inject PR link into changelogs"
-        git push origin "$BRANCH_NAME"
 
         sleep 5
         gh pr merge "$PR_URL" --squash --admin --delete-branch

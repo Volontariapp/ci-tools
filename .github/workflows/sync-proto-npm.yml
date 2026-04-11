@@ -76,6 +76,7 @@ jobs:
           fi
 
           find gen/ts -name "*.ts" -exec sed -i 's/import { wrappers } from ["'\'']protobufjs["'\'']/import _m0 from "protobufjs"; const { wrappers } = _m0/g' {} +
+          find gen/ts -name "*.ts" -exec sed -i '1s/^/\/\/ @ts-nocheck\n/' {} +
 
           CONTRACTS_ROOT="../npm-packages/packages/contracts"
           NEST_ROOT="../npm-packages/packages/contracts-nest"

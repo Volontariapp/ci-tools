@@ -24,6 +24,7 @@ runs:
       working-directory: npm-packages
       env:
         GH_TOKEN: ${{ inputs.github_token }}
+        GITHUB_TOKEN: ${{ inputs.github_token }}
       run: |
         if [ -z "${{ inputs.changed_pkgs }}" ]; then
           echo "No packages changed."
@@ -46,7 +47,6 @@ runs:
             DATE=$(date +%Y-%m-%d)
 
             if [ -f CHANGELOG.md ]; then
-              # Use node for safe changelog updating to avoid perl/regex interpolation issues
               export PR_BODY="${{ inputs.pr_body }}"
               node -e "const fs = require('fs'); let content = fs.readFileSync('CHANGELOG.md', 'utf8'); const newVersion = '$NEW_VERSION'; const date = '$DATE'; const body = process.env.PR_BODY; const header = '## [' + newVersion + '] - ' + date + '\n\n### Changed\n\n- ' + body + '\n'; content = content.replace(/(All notable changes.*)/, '\$1\n\n' + header); fs.writeFileSync('CHANGELOG.md', content);"
 

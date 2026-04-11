@@ -110,6 +110,7 @@ jobs:
           fi
 
       - name: Create Emergency Reset PR
+        id: reset-pr
         uses: Volontariapp/ci-tools/.github/actions/create-bump-pr@main
         with:
           github_token: ${{ secrets.ORG_REPO_TOKEN }}
@@ -117,3 +118,15 @@ jobs:
           commit_message: "fix(proto): emergency full reset of types for contracts and contracts-nest"
           pr_title: "🚨 EMERGENCY: Full Proto Reset"
           pr_body: "This PR performs a full regeneration of all proto files and TypeScript types for both pure @volontariapp/contracts and NestJS @volontariapp/contracts-nest packages."
+
+      - name: Comment PR link on original PR
+        if: github.event.pull_request.number != null
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.ORG_REPO_TOKEN }}
+          PR_URL: ${{ steps.reset-pr.outputs.pr_url }}
+        run: |
+          gh pr comment ${{ github.event.pull_request.number }} --repo ${{ inputs.proto_repository }} --body "🚀 **Emergency Reset completed!**
+
+          Typings have been updated for both packages. You can follow the release PR here:
+          $PR_URL"

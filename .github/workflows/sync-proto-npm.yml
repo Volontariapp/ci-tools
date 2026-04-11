@@ -121,6 +121,22 @@ jobs:
             done
           fi
 
+          # Generate/Update barrel files for each domain
+          for ROOT in "$CONTRACTS_ROOT" "$NEST_ROOT"; do
+            for DIR in $(find "$ROOT/src" -maxdepth 1 -type d ! -path "$ROOT/src"); do
+              # Skip if it's the root src or a non-domain dir
+              DOMAIN_NAME=$(basename "$DIR")
+              INDEX_FILE="$DIR/index.ts"
+              
+              # Start fresh barrel file
+              echo "// Auto-generated barrel file" > "$INDEX_FILE"
+              for TS_FILE in $(find "$DIR" -maxdepth 1 -name "*.ts" ! -name "index.ts"); do
+                BASE=$(basename "$TS_FILE" .ts)
+                echo "export * from './$BASE.js';" >> "$INDEX_FILE"
+              done
+            done
+          done
+
       - name: Check modifications, bump versions, and create PR
         uses: Volontariapp/ci-tools/.github/actions/create-bump-pr@main
         with:

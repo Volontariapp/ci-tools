@@ -104,10 +104,23 @@ jobs:
             for ROOT in "$CONTRACTS_ROOT" "$NEST_ROOT"; do
               GOOGLE_DEST="$ROOT/src/google/protobuf"
               mkdir -p "$GOOGLE_DEST"
-              rm -f "$GOOGLE_DEST"/*.ts
+              find "$GOOGLE_DEST" -type f -name "*.ts" ! -name "index.ts" -delete
               cp gen/ts/google/protobuf/*.ts "$GOOGLE_DEST/"
             done
           fi
+
+          # Generate/Update barrel files for each domain
+          for ROOT in "$CONTRACTS_ROOT" "$NEST_ROOT"; do
+            for DIR in $(find "$ROOT/src" -maxdepth 1 -type d ! -path "$ROOT/src"); do
+              DOMAIN_NAME=$(basename "$DIR")
+              INDEX_FILE="$DIR/index.ts"
+              echo "// Auto-generated barrel file" > "$INDEX_FILE"
+              for TS_FILE in $(find "$DIR" -maxdepth 1 -name "*.ts" ! -name "index.ts"); do
+                BASE=$(basename "$TS_FILE" .ts)
+                echo "export * from './$BASE.js';" >> "$INDEX_FILE"
+              done
+            done
+          done
 
       - name: Create Emergency Reset PR
         id: reset-pr

@@ -40,7 +40,8 @@ runs:
           if [ -d "packages/$PKG" ]; then
             cd "packages/$PKG"
 
-            npm version minor --no-git-tag-version --loglevel=error > /dev/null
+            # Use node to bump version manually to ignore 'workspace:' protocol errors from npm
+            node -e "const fs = require('fs'); const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')); const parts = pkg.version.split('.').map(Number); parts[1] += 1; parts[2] = 0; pkg.version = parts.join('.'); fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');"
             NEW_VERSION=$(node -p "require('./package.json').version")
             DATE=$(date +%Y-%m-%d)
 

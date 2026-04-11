@@ -46,7 +46,9 @@ runs:
             DATE=$(date +%Y-%m-%d)
 
             if [ -f CHANGELOG.md ]; then
-              perl -pi -e 's/(All notable changes.*)/$1\n\n## ['"$NEW_VERSION"'] - '"$DATE"'\n\n### Changed\n\n- ${{ inputs.pr_body }}\n/g' CHANGELOG.md
+              # Use node for safe changelog updating to avoid perl/regex interpolation issues
+              export PR_BODY="${{ inputs.pr_body }}"
+              node -e "const fs = require('fs'); let content = fs.readFileSync('CHANGELOG.md', 'utf8'); const newVersion = '$NEW_VERSION'; const date = '$DATE'; const body = process.env.PR_BODY; const header = '## [' + newVersion + '] - ' + date + '\n\n### Changed\n\n- ' + body + '\n'; content = content.replace(/(All notable changes.*)/, '\$1\n\n' + header); fs.writeFileSync('CHANGELOG.md', content);"
 
               if grep -q '^\[.*\].*github.com' CHANGELOG.md; then
                 awk -v newlink="[$NEW_VERSION]: https://github.com/Volontariapp/npm-packages/pull/PR_PLACEHOLDER" '/^\[.*\]: / && !inserted {print newlink; inserted=1} 1' CHANGELOG.md > CHANGELOG.tmp && mv CHANGELOG.tmp CHANGELOG.md

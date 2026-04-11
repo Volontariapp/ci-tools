@@ -36,32 +36,23 @@ runs:
         BRANCH_NAME="bot/sync-proto-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
         git checkout -b "$BRANCH_NAME"
 
+        # Create a changeset file for the modified packages
+        CHANGESET_FILE=".changeset/proto-sync-${GITHUB_RUN_ID}.md"
+        echo "---" > "$CHANGESET_FILE"
         for PKG in ${{ inputs.changed_pkgs }}; do
-          echo "Bumping version for $PKG..."
-          if [ -d "packages/$PKG" ]; then
-            cd "packages/$PKG"
-
-            # Use node to bump version manually to ignore 'workspace:' protocol errors from npm
-            node -e "const fs = require('fs'); const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')); const parts = pkg.version.split('.').map(Number); parts[1] += 1; parts[2] = 0; pkg.version = parts.join('.'); fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');"
-            NEW_VERSION=$(node -p "require('./package.json').version")
-            DATE=$(date +%Y-%m-%d)
-
-            if [ -f CHANGELOG.md ]; then
-              export PR_BODY="${{ inputs.pr_body }}"
-              node -e "const fs = require('fs'); let content = fs.readFileSync('CHANGELOG.md', 'utf8'); const newVersion = '$NEW_VERSION'; const date = '$DATE'; const body = process.env.PR_BODY; const header = '## [' + newVersion + '] - ' + date + '\n\n### Changed\n\n- ' + body + '\n'; content = content.replace(/(All notable changes.*)/, '\$1\n\n' + header); fs.writeFileSync('CHANGELOG.md', content);"
-
-              if grep -q '^\[.*\].*github.com' CHANGELOG.md; then
-                awk -v newlink="[$NEW_VERSION]: https://github.com/Volontariapp/npm-packages/pull/PR_PLACEHOLDER" '/^\[.*\]: / && !inserted {print newlink; inserted=1} 1' CHANGELOG.md > CHANGELOG.tmp && mv CHANGELOG.tmp CHANGELOG.md
-              else
-                echo "[$NEW_VERSION]: https://github.com/Volontariapp/npm-packages/pull/PR_PLACEHOLDER" >> CHANGELOG.md
-              fi
-            else
-              echo -e "# Changelog\n\nAll notable changes to this project will be documented in this file.\n\n## [$NEW_VERSION] - $DATE\n\n### Changed\n\n- ${{ inputs.pr_body }}\n\n[$NEW_VERSION]: https://github.com/Volontariapp/npm-packages/pull/PR_PLACEHOLDER" > CHANGELOG.md
-            fi
-
-            cd ../..
+          if [ -f "packages/$PKG/package.json" ]; then
+            REAL_NAME=$(node -p "require('./packages/$PKG/package.json').name")
+            echo "\"$REAL_NAME\": patch" >> "$CHANGESET_FILE"
           fi
         done
+        echo "---" >> "$CHANGESET_FILE"
+        echo "" >> "$CHANGESET_FILE"
+        echo "${{ inputs.pr_body }}" >> "$CHANGESET_FILE"
+
+        echo "Generated changeset file: $CHANGESET_FILE"
+        
+        # Run changeset version to update package.json and CHANGELOG.md files
+        yarn changeset version
 
         git add packages/
         git commit -m "${{ inputs.commit_message }}"

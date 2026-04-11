@@ -80,7 +80,6 @@ jobs:
           CONTRACTS_ROOT="../npm-packages/packages/contracts"
           NEST_ROOT="../npm-packages/packages/contracts-nest"
 
-          # Sync Proto files to Nest integration package ONLY
           PROTO_DEST="$NEST_ROOT/proto"
           if [ -L "$PROTO_DEST" ]; then
             rm -f "$PROTO_DEST"
@@ -130,4 +129,3 @@ jobs:
           commit_message: "chore(proto): auto-update typings for contracts and contracts-nest"
           pr_title: "chore: sync proto typings"
           pr_body: "Auto-generated proto typings update for both pure contracts and NestJS integration."
-

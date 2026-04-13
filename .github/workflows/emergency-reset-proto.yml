@@ -111,13 +111,16 @@ jobs:
 
           # Fix relative imports for flattened structure
           for ROOT in "$CONTRACTS_ROOT" "$NEST_ROOT"; do
-            find "$ROOT/src" -type f -name "*.ts" -exec sed -i 's/\.\.\/\.\.\/google/..\/google/g' {} +
+            find "$ROOT/src" -type f -name "*.ts" ! -path "*/gateway/*" -exec sed -i 's/\.\.\/\.\.\/google/..\/google/g' {} +
           done
 
           # Generate/Update barrel files for each domain
           for ROOT in "$CONTRACTS_ROOT" "$NEST_ROOT"; do
             for DIR in $(find "$ROOT/src" -maxdepth 1 -type d ! -path "$ROOT/src"); do
               DOMAIN_NAME=$(basename "$DIR")
+              if [ "$DOMAIN_NAME" = "gateway" ]; then
+                continue
+              fi
               INDEX_FILE="$DIR/index.ts"
               echo "// Auto-generated barrel file" > "$INDEX_FILE"
               for TS_FILE in $(find "$DIR" -maxdepth 1 -name "*.ts" ! -name "index.ts"); do

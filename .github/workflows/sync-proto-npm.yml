@@ -70,7 +70,7 @@ jobs:
           else
             echo "Changed protos: $CHANGED_PROTOS"
             buf generate
-            DOMAINS=$(echo "$CHANGED_PROTOS" | grep -o '^proto/volontariapp/[^/]*' | cut -d'/' -f3 | sort | uniq | tr '\n' ' ')
+            DOMAINS=$(echo "$CHANGED_PROTOS" | grep -o '^proto/volontariapp/[^/]*' | cut -d'/' -f3 | grep -v "gateway" | sort | uniq | tr '\n' ' ')
             DOMAINS="$DOMAINS common"
             echo "Domains to update: $DOMAINS"
           fi
@@ -123,14 +123,18 @@ jobs:
 
           # Fix relative imports for flattened structure
           for ROOT in "$CONTRACTS_ROOT" "$NEST_ROOT"; do
-            find "$ROOT/src" -type f -name "*.ts" -exec sed -i 's/\.\.\/\.\.\/google/..\/google/g' {} +
+            find "$ROOT/src" -type f -name "*.ts" ! -path "*/gateway/*" -exec sed -i 's/\.\.\/\.\.\/google/..\/google/g' {} +
           done
 
           # Generate/Update barrel files for each domain
           for ROOT in "$CONTRACTS_ROOT" "$NEST_ROOT"; do
             for DIR in $(find "$ROOT/src" -maxdepth 1 -type d ! -path "$ROOT/src"); do
-              # Skip if it's the root src or a non-domain dir
+              # Skip if it's the root src or a non-domain dir or gateway
               DOMAIN_NAME=$(basename "$DIR")
+              if [ "$DOMAIN_NAME" = "gateway" ]; then
+                continue
+              fi
+
               INDEX_FILE="$DIR/index.ts"
               
               # Start fresh barrel file

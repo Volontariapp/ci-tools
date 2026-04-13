@@ -66,7 +66,7 @@ jobs:
           OUTPUT=$(yarn explain peer-requirements)
           echo "$OUTPUT"
           # Ignore known false positives for NestJS and internal packages
-          FILTERED_ERRORS=$(echo "$OUTPUT" | grep "✘" | grep -vE "@nestjs|@volontariapp")
+          FILTERED_ERRORS=$(echo "$OUTPUT" | grep "✘" | grep -vE "@nestjs|@volontariapp" || true)
           if [ -n "$FILTERED_ERRORS" ]; then
             echo "Critical peer dependency requirements missing!"
             echo "$FILTERED_ERRORS"

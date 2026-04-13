@@ -1,0 +1,47 @@
+name: 'Domain Package CI'
+description: 'Builds and tests a domain package with database the migrations'
+inputs:
+  package_path:
+    description: 'Path target package'
+    required: true
+  package_name:
+    description: 'Name of the package'
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Get Domain Name
+      id: domain
+      shell: bash
+      run: |
+        DOMAIN=$(echo "${{ inputs.package_name }}" | sed 's/domain-//')
+        echo "name=$DOMAIN" >> $GITHUB_OUTPUT
+
+    - name: Start Database
+      shell: bash
+      run: |
+        docker compose -f ci-tools/docker-compose.yml up -d postgres-${{ steps.domain.outputs.name }} --wait
+
+    - name: Run Unit Tests
+      shell: bash
+      run: |
+        cd ${{ inputs.package_path }} && yarn test
+
+    - name: Run Migrations
+      shell: bash
+      run: |
+        if [ -f "${{ inputs.package_path }}/src/test/data-source.ts" ]; then
+          cd ${{ inputs.package_path }} && yarn migration:run
+        else
+          echo "No migration configuration found at src/test/data-source.ts, skipping."
+        fi
+
+    - name: Run Integration Tests
+      shell: bash
+      run: |
+        if grep -q "\"test:integration\":" "${{ inputs.package_path }}/package.json"; then
+          cd ${{ inputs.package_path }} && yarn test:integration
+        else
+          echo "No integration tests (test:integration) found in package.json, skipping."
+        fi

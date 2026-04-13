@@ -49,5 +49,13 @@ jobs:
         if: ${{ matrix.package == 'database' || matrix.package == 'bridge' || matrix.package == 'bridge-nest' || matrix.package == 'health-check' || matrix.package == 'health-check-nest' }}
         run: docker compose -f ci-tools/testing/docker-compose.yml --profile test up -d --wait
 
+      - name: Domain Package CI
+        if: startsWith(matrix.package, 'domain-')
+        uses: Volontariapp/ci-tools/.github/actions/domain-package-ci@main
+        with:
+          package_name: ${{ matrix.package }}
+          package_path: packages/${{ matrix.package }}
+
       - name: Test Package
+        if: ${{ !startsWith(matrix.package, 'domain-') }}
         run: cd packages/${{ matrix.package }} && yarn test

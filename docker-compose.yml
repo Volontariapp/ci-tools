@@ -127,21 +127,6 @@ services:
       timeout: 5s
       retries: 5
 
-  neo4j-user:
-    image: neo4j:5.20
-    container_name: neo4j-user
-    environment:
-      NEO4J_AUTH: neo4j/password
-    ports:
-      - "7474:7474"
-      - "7687:7687"
-    volumes:
-      - neo4j_user_data:/data
-    healthcheck:
-      test: ["CMD-SHELL", "cypher-shell -u neo4j -p password 'RETURN 1'"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   postgres-post:
     image: postgres:16-alpine

@@ -82,7 +82,7 @@ jobs:
             if [ -d "gen/ts/volontariapp/$DOMAIN" ]; then
               DOMAIN_DEST="$CONTRACTS_ROOT/src/$DOMAIN"
               mkdir -p "$DOMAIN_DEST"
-              find "$DOMAIN_DEST" -type f -name "*.ts" ! -name "index.ts" -delete
+              find "$DOMAIN_DEST" -type f -name "*.ts" ! -name "index.ts" ! -name "*grpc-helpers.ts" ! -name "*date.mapper.ts" -delete
               # Copy then remove services
               cp gen/ts/volontariapp/$DOMAIN/*.ts "$DOMAIN_DEST/"
               find "$DOMAIN_DEST" -name "*.services.ts" -delete
@@ -94,7 +94,7 @@ jobs:
             if [ -d "gen/ts/volontariapp/$DOMAIN" ]; then
               DOMAIN_DEST="$NEST_ROOT/src/$DOMAIN"
               mkdir -p "$DOMAIN_DEST"
-              find "$DOMAIN_DEST" -type f -name "*.ts" ! -name "index.ts" -delete
+              find "$DOMAIN_DEST" -type f -name "*.ts" ! -name "index.ts" ! -name "*grpc-helpers.ts" ! -name "*date.mapper.ts" -delete
               cp gen/ts/volontariapp/$DOMAIN/*.ts "$DOMAIN_DEST/"
             fi
           done
@@ -108,6 +108,11 @@ jobs:
               cp gen/ts/google/protobuf/*.ts "$GOOGLE_DEST/"
             done
           fi
+
+          # Fix relative imports for flattened structure
+          for ROOT in "$CONTRACTS_ROOT" "$NEST_ROOT"; do
+            find "$ROOT/src" -type f -name "*.ts" -exec sed -i 's/\.\.\/\.\.\/google/..\/google/g' {} +
+          done
 
           # Generate/Update barrel files for each domain
           for ROOT in "$CONTRACTS_ROOT" "$NEST_ROOT"; do

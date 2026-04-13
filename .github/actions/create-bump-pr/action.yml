@@ -69,6 +69,3 @@ runs:
         PR_URL=$(gh pr create --title "${{ inputs.pr_title }}" --body "${{ inputs.pr_body }}" --head "$BRANCH_NAME" --base main)
         echo "Created PR: $PR_URL"
         echo "pr_url=$PR_URL" >> "$GITHUB_OUTPUT"
-
-        sleep 5
-        gh pr merge "$PR_URL" --squash --admin --delete-branch

@@ -160,22 +160,6 @@ services:
       timeout: 5s
       retries: 5
 
-  neo4j-post:
-    image: neo4j:5.20
-    container_name: neo4j-post
-    environment:
-      NEO4J_AUTH: neo4j/password
-    ports:
-      - "7475:7474"
-      - "7688:7687"
-    volumes:
-      - neo4j_post_data:/data
-    healthcheck:
-      test: ["CMD-SHELL", "cypher-shell -u neo4j -p password 'RETURN 1'"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   postgres-event:
     image: postgis/postgis:16-3.4
     platform: linux/amd64
@@ -194,28 +178,9 @@ services:
       timeout: 5s
       retries: 5
 
-  neo4j-event:
-    image: neo4j:5.20
-    container_name: neo4j-event
-    environment:
-      NEO4J_AUTH: neo4j/password
-    ports:
-      - "7476:7474"
-      - "7689:7687"
-    volumes:
-      - neo4j_event_data:/data
-    healthcheck:
-      test: ["CMD-SHELL", "cypher-shell -u neo4j -p password 'RETURN 1'"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
 volumes:
   postgres_user_data:
-  neo4j_user_data:
   postgres_post_data:
-  neo4j_post_data:
   postgres_event_data:
-  neo4j_event_data:
   grafana_data:
   prometheus_data:

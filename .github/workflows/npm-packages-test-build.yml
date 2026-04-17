@@ -107,18 +107,20 @@ jobs:
         if: github.event_name == 'pull_request' || github.event.pull_request != null
         run: |
           if [ -z "${{ secrets.NPM_TOKEN }}" ]; then
-            echo "NPM_TOKEN is missing, skipping auth."
+            echo "NPM_TOKEN is missing, skipping auth setup."
             exit 0
           fi
+          # Ensuring npmrc is ready just in case some tools need it
           echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
-          yarn config set 'npmRegistries["//registry.npmjs.org/"].npmAuthToken' "${{ secrets.NPM_TOKEN }}"
 
       - name: Publish Snapshot
         if: github.event_name == 'pull_request' || github.event.pull_request != null
         id: publish
         shell: bash
+        env:
+          YARN_NPM_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          if [ -z "${{ secrets.NPM_TOKEN }}" ]; then
+          if [ -z "$YARN_NPM_AUTH_TOKEN" ]; then
             echo "NPM_TOKEN is missing, skipping publish."
             exit 0
           fi

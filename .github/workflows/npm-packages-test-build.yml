@@ -145,16 +145,18 @@ jobs:
           # Fetch coverage summary for this package
           SUMMARY_FILE="packages/${{ matrix.package }}/coverage/coverage-summary.json"
           if [ -f "$SUMMARY_FILE" ]; then
-            REPORT=$(cat <<EOF | sed 's/^[[:space:]]*//'
-            ### 📊 Rapport de CI
-            | Type | Couverture |
-            | :--- | :--- |
-            | 📏 Lines | **$(jq -r '.total.lines.pct' "$SUMMARY_FILE")%** |
-            | 📄 Statements | **$(jq -r '.total.statements.pct' "$SUMMARY_FILE")%** |
-            | 📞 Functions | **$(jq -r '.total.functions.pct' "$SUMMARY_FILE")%** |
-            | 🌿 Branches | **$(jq -r '.total.branches.pct' "$SUMMARY_FILE")%** |
-            EOF
-            )
+            LINES=$(jq -r '.total.lines.pct' "$SUMMARY_FILE")
+            STMTS=$(jq -r '.total.statements.pct' "$SUMMARY_FILE")
+            FUNCS=$(jq -r '.total.functions.pct' "$SUMMARY_FILE")
+            BRCHS=$(jq -r '.total.branches.pct' "$SUMMARY_FILE")
+            REPORT=$(printf '%s\n%s\n%s\n%s\n%s\n%s\n%s' \
+              "### 📊 Rapport de CI" \
+              "| Type | Couverture |" \
+              "| :--- | :--- |" \
+              "| 📏 Lines | **${LINES}%** |" \
+              "| 📄 Statements | **${STMTS}%** |" \
+              "| 📞 Functions | **${FUNCS}%** |" \
+              "| 🌿 Branches | **${BRCHS}%** |")
           else
             REPORT="> [!NOTE]
 Pas de rapport de couverture trouvé pour ce package."

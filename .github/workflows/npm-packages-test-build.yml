@@ -37,7 +37,6 @@ jobs:
       - name: Install Dependencies
         run: yarn install --immutable
 
-
       - name: Build Package
         run: |
           PKG_NAME=$(node -p "require('./packages/${{ matrix.package }}/package.json').name")
@@ -159,7 +158,7 @@ jobs:
               "| 🌿 Branches | **${BRCHS}%** |")
           else
             REPORT="> [!NOTE]
-Pas de rapport de couverture trouvé pour ce package."
+            Pas de rapport de couverture trouvé pour ce package."
           fi
 
           PR_NUMBER="${{ github.event.pull_request.number }}"
@@ -170,17 +169,17 @@ Pas de rapport de couverture trouvé pour ce package."
 
           if [ -n "$PR_NUMBER" ] && [ "$PR_NUMBER" != "null" ]; then
             gh pr comment "$PR_NUMBER" --body "🚀 Nouvelle version de \`$PKG\` :
-$REPORT
+            $REPORT
 
-**📦 Installation**
-\`\`\`bash
-yarn add $TAG
-\`\`\`
+            **📦 Installation**
+            \`\`\`bash
+            yarn add $TAG
+            \`\`\`
 
-**🔄 Mise à jour**
-\`\`\`bash
-yarn up $TAG
-\`\`\`"
+            **🔄 Mise à jour**
+            \`\`\`bash
+            yarn up $TAG
+            \`\`\`"
           else
             echo "No PR number found, skipping comment."
             echo "### 🚀 Nouvelle version de \`$PKG\`" >> $GITHUB_STEP_SUMMARY

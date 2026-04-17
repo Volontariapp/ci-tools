@@ -204,8 +204,11 @@ jobs:
           fi
 
           if [ -n "$PR_NUMBER" ] && [ "$PR_NUMBER" != "null" ]; then
+            REPORT_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts"
             gh pr comment "$PR_NUMBER" --body "🚀 Nouvelle version de \`$PKG\` :
             $REPORT
+            
+            [🔍 Voir le rapport HTML détaillé]($REPORT_URL)
 
             **📦 Installation**
             \`\`\`bash

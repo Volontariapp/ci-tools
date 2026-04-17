@@ -138,7 +138,7 @@ jobs:
             const fs = require('fs');
             const path = require('path');
             const packagesDir = 'packages';
-            const suffix = '$SUFFIX' || ('snapshot.' + new Date().toISOString().replace(/[:.-]/g, '').slice(0, 14) + '.' + '${{ github.sha }}'.slice(0, 7));
+            const suffix = '$SUFFIX' || ('snapshot.' + new Date().toISOString().replace(/[:.-]/g, '').slice(0, 14) + '.g' + '${{ github.sha }}'.slice(0, 7));
             
             fs.readdirSync(packagesDir).forEach(dir => {
               const p = path.join(packagesDir, dir, 'package.json');

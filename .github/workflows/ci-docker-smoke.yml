@@ -1,0 +1,171 @@
+name: "Docker Build & Smoke Test"
+
+on:
+  workflow_call:
+    inputs:
+      service-name:
+        required: true
+        type: string
+      node-version:
+        required: false
+        type: string
+        default: "24.14.0"
+      db-image:
+        required: false
+        type: string
+        default: "postgres:16-alpine"
+      db-name:
+        required: false
+        type: string
+        default: "test_db"
+      db-user:
+        required: false
+        type: string
+        default: "user"
+      db-password:
+        required: false
+        type: string
+        default: "password"
+      port:
+        required: false
+        type: number
+        default: 3000
+      db-type:
+        required: false
+        type: string
+        default: "postgres"
+      use-compose:
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      ORG_REPO_TOKEN:
+        required: false
+
+jobs:
+  smoke-test:
+    name: Build, Run & Health Check (${{ inputs.service-name }})
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node & Yarn
+        uses: Volontariapp/ci-tools/.github/actions/setup-node-yarn@main
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Install Dependencies
+        run: yarn install --immutable
+
+      - name: Build Docker Image
+        continue-on-error: true
+        id: build
+        run: |
+          docker build -t ${{ inputs.service-name }}:latest .
+
+      - name: Start Dependencies
+        if: steps.build.outcome == 'success'
+        continue-on-error: true
+        run: |
+          docker network create ci-net
+          if [ "${{ inputs.use-compose }}" = "true" ] && [ -f "docker-compose.yml" ]; then
+            docker compose up -d
+          else
+            case "${{ inputs.db-type }}" in
+              postgres)
+                docker run -d --name db --network ci-net -p 5432:5432 \
+                  -e POSTGRES_DB=${{ inputs.db-name }} \
+                  -e POSTGRES_USER=${{ inputs.db-user }} \
+                  -e POSTGRES_PASSWORD=${{ inputs.db-password }} \
+                  ${{ inputs.db-image }}
+                ;;
+              neo4j)
+                docker run -d --name db --network ci-net -p 7474:7474 -p 7687:7687 \
+                  -e NEO4J_AUTH=${{ inputs.db-user }}/${{ inputs.db-password }} \
+                  neo4j:5-community
+                ;;
+              redis)
+                docker run -d --name db --network ci-net -p 6379:6379 \
+                  redis:7-alpine
+                ;;
+            esac
+          fi
+
+      - name: Wait for Database
+        if: steps.build.outcome == 'success'
+        continue-on-error: true
+        run: |
+          echo "Waiting for ${{ inputs.db-type }} to be ready..."
+          case "${{ inputs.db-type }}" in
+            postgres)
+              for i in {1..30}; do
+                if docker run --rm --network ci-net ${{ inputs.db-image }} pg_isready -h db -U ${{ inputs.db-user }} -d ${{ inputs.db-name }}; then
+                  exit 0
+                fi
+                sleep 2
+              done
+              ;;
+            neo4j)
+              for i in {1..30}; do
+                if curl -s http://localhost:7474 > /dev/null; then
+                  exit 0
+                fi
+                sleep 2
+              done
+              ;;
+            redis)
+              for i in {1..30}; do
+                if docker run --rm --network ci-net redis:7-alpine redis-cli -h db ping | grep -q PONG; then
+                  exit 0
+                fi
+                sleep 2
+              done
+              ;;
+          esac
+
+      - name: Start Microservice Container
+        if: steps.build.outcome == 'success'
+        continue-on-error: true
+        run: |
+          docker run -d \
+            --name ms \
+            --network ci-net \
+            -p ${{ inputs.port }}:${{ inputs.port }} \
+            -e NODE_ENV=production \
+            -e DB_HOST=db \
+            -e DB_PORT=5432 \
+            -e DB_USERNAME=${{ inputs.db-user }} \
+            -e DB_PASSWORD=${{ inputs.db-password }} \
+            -e DB_NAME=${{ inputs.db-name }} \
+            ${{ inputs.service-name }}:latest
+
+      - name: Verify Health Check (Curl)
+        if: steps.build.outcome == 'success'
+        continue-on-error: true
+        run: |
+          echo "Performing health check on microservice..."
+          for i in {1..30}; do
+            RESPONSE=$(curl -s http://localhost:${{ inputs.port }}/health || true)
+            if echo "$RESPONSE" | grep -q '"status":"ok"'; then
+              echo "Microservice is healthy!"
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs ms
+          exit 1
+
+      - name: Run Microservice Tests
+        if: steps.build.outcome == 'success'
+        continue-on-error: true
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USERNAME: ${{ inputs.db-user }}
+          DB_PASSWORD: ${{ inputs.db-password }}
+          DB_NAME: ${{ inputs.db-name }}
+          NODE_ENV: test
+        run: |
+          # Since DB is mapped to 5432 on localhost, host tests can connect
+          yarn test

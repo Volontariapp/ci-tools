@@ -104,16 +104,24 @@ jobs:
           retention-days: 7
 
       - name: Unified NPM & Yarn Auth
-        if: (github.event_name == 'pull_request' || github.event.pull_request != null) && secrets.NPM_TOKEN != ''
+        if: github.event_name == 'pull_request' || github.event.pull_request != null
         run: |
+          if [ -z "${{ secrets.NPM_TOKEN }}" ]; then
+            echo "NPM_TOKEN is missing, skipping auth."
+            exit 0
+          fi
           echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
           yarn config set 'npmRegistries["//registry.npmjs.org/"].npmAuthToken' "${{ secrets.NPM_TOKEN }}"
 
       - name: Publish Snapshot
-        if: (github.event_name == 'pull_request' || github.event.pull_request != null) && secrets.NPM_TOKEN != ''
+        if: github.event_name == 'pull_request' || github.event.pull_request != null
         id: publish
         shell: bash
         run: |
+          if [ -z "${{ secrets.NPM_TOKEN }}" ]; then
+            echo "NPM_TOKEN is missing, skipping publish."
+            exit 0
+          fi
           PKG_JSON="packages/${{ matrix.package }}/package.json"
           PKG_NAME=$(node -p "require('./$PKG_JSON').name")
           PKG_VERSION=$(node -p "require('./$PKG_JSON').version")

@@ -66,7 +66,7 @@ jobs:
           if [ -z "$CHANGED_PROTOS" ]; then
             echo "No proto files changed or first commit. Generating all."
             buf generate
-            DOMAINS="user post event common"
+            DOMAINS="user post event social common"
           else
             echo "Changed protos: $CHANGED_PROTOS"
             buf generate

@@ -80,7 +80,7 @@ jobs:
               neo4j)
                 docker run -d --name db --network ci-net -p 7474:7474 -p 7687:7687 \
                   -e NEO4J_AUTH=${{ inputs.db-user }}/${{ inputs.db-password }} \
-                  neo4j:5-community
+                  ${{ inputs.db-image }}
                 ;;
               redis)
                 docker run -d --name db --network ci-net -p 6379:6379 \
@@ -131,6 +131,11 @@ jobs:
             -e DB_USERNAME=${{ inputs.db-user }} \
             -e DB_PASSWORD=${{ inputs.db-password }} \
             -e DB_NAME=${{ inputs.db-name }} \
+            -e NEO4J_HOST=db \
+            -e NEO4J_PORT=7687 \
+            -e NEO4J_USERNAME=${{ inputs.db-user }} \
+            -e NEO4J_PASSWORD=${{ inputs.db-password }} \
+            -e NEO4J_DATABASE=${{ inputs.db-name }} \
             ${{ inputs.service-name }}:latest
 
       - name: Verify Health Check (Curl)

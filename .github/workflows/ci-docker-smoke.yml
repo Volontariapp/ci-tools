@@ -29,7 +29,7 @@ on:
       port:
         required: false
         type: number
-        default: 3000
+        default: 3003
       db-type:
         required: false
         type: string
@@ -59,14 +59,11 @@ jobs:
         run: yarn install --immutable
 
       - name: Build Docker Image
-        continue-on-error: true
         id: build
         run: |
           docker build -t ${{ inputs.service-name }}:latest .
 
       - name: Start Dependencies
-        if: steps.build.outcome == 'success'
-        continue-on-error: true
         run: |
           docker network create ci-net
           if [ "${{ inputs.use-compose }}" = "true" ] && [ -f "docker-compose.yml" ]; then
@@ -93,8 +90,6 @@ jobs:
           fi
 
       - name: Wait for Database
-        if: steps.build.outcome == 'success'
-        continue-on-error: true
         run: |
           echo "Waiting for ${{ inputs.db-type }} to be ready..."
           case "${{ inputs.db-type }}" in
@@ -125,8 +120,6 @@ jobs:
           esac
 
       - name: Start Microservice Container
-        if: steps.build.outcome == 'success'
-        continue-on-error: true
         run: |
           docker run -d \
             --name ms \
@@ -141,8 +134,6 @@ jobs:
             ${{ inputs.service-name }}:latest
 
       - name: Verify Health Check (Curl)
-        if: steps.build.outcome == 'success'
-        continue-on-error: true
         run: |
           echo "Performing health check on microservice..."
           for i in {1..30}; do
@@ -157,8 +148,6 @@ jobs:
           exit 1
 
       - name: Run Microservice Tests
-        if: steps.build.outcome == 'success'
-        continue-on-error: true
         env:
           DB_HOST: localhost
           DB_PORT: 5432

@@ -23,10 +23,14 @@ runs:
       run: |
         docker compose -f ci-tools/docker-compose.yml up -d postgres-${{ steps.domain.outputs.name }} --wait
 
-    - name: Run Unit Tests
+    - name: Run Unit Tests with Coverage
       shell: bash
       run: |
-        cd ${{ inputs.package_path }} && yarn test
+        if grep -q "\"test:coverage\":" "${{ inputs.package_path }}/package.json"; then
+          cd ${{ inputs.package_path }} && yarn test:coverage
+        else
+          echo "No unit tests (test:coverage) found in package.json, skipping."
+        fi
 
     - name: Run Migrations
       shell: bash

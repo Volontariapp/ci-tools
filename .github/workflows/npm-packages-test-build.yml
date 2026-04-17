@@ -10,6 +10,8 @@ on:
     secrets:
       ORG_REPO_TOKEN:
         required: true
+      NPM_TOKEN:
+        required: false
 
 jobs:
   test-build:
@@ -33,7 +35,7 @@ jobs:
           cache: "yarn"
 
       - name: Install Dependencies
-        run: cd packages/${{ matrix.package }} && yarn workspaces focus
+        run: yarn install --immutable
 
 
       - name: Build Package
@@ -58,4 +60,127 @@ jobs:
 
       - name: Test Package
         if: ${{ !startsWith(matrix.package, 'domain-') }}
-        run: cd packages/${{ matrix.package }} && yarn test
+        run: |
+          cd packages/${{ matrix.package }}
+          if grep -q "\"test:coverage\":" package.json; then
+            yarn test:coverage
+          else
+            yarn test
+          fi
+
+      - name: Publish Coverage Summary
+        if: always()
+        run: |
+          COVERAGE_FILE="packages/${{ matrix.package }}/coverage/coverage-summary.json"
+          if [ -f "$COVERAGE_FILE" ]; then
+            echo "### Coverage for ${{ matrix.package }}" >> $GITHUB_STEP_SUMMARY
+            echo "| Type | Percentage |" >> $GITHUB_STEP_SUMMARY
+            echo "|------|------------|" >> $GITHUB_STEP_SUMMARY
+            LINES=$(jq -r '.total.lines.pct' $COVERAGE_FILE)
+            STATEMENTS=$(jq -r '.total.statements.pct' $COVERAGE_FILE)
+            FUNCTIONS=$(jq -r '.total.functions.pct' $COVERAGE_FILE)
+            BRANCHES=$(jq -r '.total.branches.pct' $COVERAGE_FILE)
+            echo "| Lines | ${LINES}% |" >> $GITHUB_STEP_SUMMARY
+            echo "| Statements | ${STATEMENTS}% |" >> $GITHUB_STEP_SUMMARY
+            echo "| Functions | ${FUNCTIONS}% |" >> $GITHUB_STEP_SUMMARY
+            echo "| Branches | ${BRANCHES}% |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "[🔍 View detailed HTML report in Artifacts](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload Coverage Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.package }}
+          path: packages/${{ matrix.package }}/coverage/lcov-report
+          retention-days: 7
+
+      - name: Upload Coverage Summary JSON
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-summary-${{ matrix.package }}
+          path: packages/${{ matrix.package }}/coverage/coverage-summary.json
+          retention-days: 7
+
+      - name: Unified NPM & Yarn Auth
+        if: (github.event_name == 'pull_request' || github.event.pull_request != null) && secrets.NPM_TOKEN != ''
+        run: |
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
+          yarn config set 'npmRegistries["//registry.npmjs.org/"].npmAuthToken' "${{ secrets.NPM_TOKEN }}"
+
+      - name: Publish Snapshot
+        if: (github.event_name == 'pull_request' || github.event.pull_request != null) && secrets.NPM_TOKEN != ''
+        id: publish
+        shell: bash
+        run: |
+          PKG_JSON="packages/${{ matrix.package }}/package.json"
+          PKG_NAME=$(node -p "require('./$PKG_JSON').name")
+          PKG_VERSION=$(node -p "require('./$PKG_JSON').version")
+          SHA_SHORT=$(echo "${{ github.sha }}" | cut -c1-7)
+          TIMESTAMP=$(date +%Y%m%d%H%M%S)
+          SNAPSHOT_VER="${PKG_VERSION}-snapshot.${TIMESTAMP}.${SHA_SHORT}"
+
+          # Update version
+          node -e "const f='$PKG_JSON'; const p=JSON.parse(require('fs').readFileSync(f)); p.version='${SNAPSHOT_VER}'; require('fs').writeFileSync(f, JSON.stringify(p, null, 2) + '\n')"
+
+          # Publish
+          cd packages/${{ matrix.package }}
+          yarn npm publish --access public --tag next
+
+          # Outputs for comment
+          echo "pkg_name=$PKG_NAME" >> "$GITHUB_OUTPUT"
+          echo "snapshot_ver=$SNAPSHOT_VER" >> "$GITHUB_OUTPUT"
+
+      - name: Post Comment on PR
+        if: steps.publish.outcome == 'success'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PKG="${{ steps.publish.outputs.pkg_name }}"
+          VER="${{ steps.publish.outputs.snapshot_ver }}"
+          TAG="${PKG}@${VER}"
+
+          # Fetch coverage summary for this package
+          SUMMARY_FILE="packages/${{ matrix.package }}/coverage/coverage-summary.json"
+          if [ -f "$SUMMARY_FILE" ]; then
+            REPORT=$(cat <<EOF | sed 's/^[[:space:]]*//'
+            ### 📊 Rapport de CI
+            | Type | Couverture |
+            | :--- | :--- |
+            | 📏 Lines | **$(jq -r '.total.lines.pct' "$SUMMARY_FILE")%** |
+            | 📄 Statements | **$(jq -r '.total.statements.pct' "$SUMMARY_FILE")%** |
+            | 📞 Functions | **$(jq -r '.total.functions.pct' "$SUMMARY_FILE")%** |
+            | 🌿 Branches | **$(jq -r '.total.branches.pct' "$SUMMARY_FILE")%** |
+            EOF
+            )
+          else
+            REPORT="> [!NOTE]
+Pas de rapport de couverture trouvé pour ce package."
+          fi
+
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          if [ -z "$PR_NUMBER" ] && [ "${{ github.event_name }}" == "pull_request" ]; then
+             # Try fallback for some PR events
+             PR_NUMBER=$(jq -r '.pull_request.number' "$GITHUB_EVENT_PATH")
+          fi
+
+          if [ -n "$PR_NUMBER" ] && [ "$PR_NUMBER" != "null" ]; then
+            gh pr comment "$PR_NUMBER" --body "🚀 Nouvelle version de \`$PKG\` :
+$REPORT
+
+**📦 Installation**
+\`\`\`bash
+yarn add $TAG
+\`\`\`
+
+**🔄 Mise à jour**
+\`\`\`bash
+yarn up $TAG
+\`\`\`"
+          else
+            echo "No PR number found, skipping comment."
+            echo "### 🚀 Nouvelle version de \`$PKG\`" >> $GITHUB_STEP_SUMMARY
+            echo "$REPORT" >> $GITHUB_STEP_SUMMARY
+          fi

@@ -47,11 +47,11 @@ jobs:
           yarn workspaces foreach -vpt --from "$PKG_NAME" -R run build
 
       - name: Build Test Database
-        if: ${{ matrix.package == 'database' || matrix.package == 'bridge' || matrix.package == 'bridge-nest' || matrix.package == 'health-check' || matrix.package == 'health-check-nest' }}
+        if: ${{ matrix.package == 'database' || matrix.package == 'bridge' || matrix.package == 'bridge-nest' || matrix.package == 'health-check' || matrix.package == 'health-check-nest' || matrix.package == 'outbox' }}
         run: docker compose -f ci-tools/testing/docker-compose.yml --profile test build
 
       - name: Setup Test Database
-        if: ${{ matrix.package == 'database' || matrix.package == 'bridge' || matrix.package == 'bridge-nest' || matrix.package == 'health-check' || matrix.package == 'health-check-nest' }}
+        if: ${{ matrix.package == 'database' || matrix.package == 'bridge' || matrix.package == 'bridge-nest' || matrix.package == 'health-check' || matrix.package == 'health-check-nest' || matrix.package == 'outbox' }}
         run: docker compose -f ci-tools/testing/docker-compose.yml --profile test up -d --wait
 
       - name: Domain Package CI
@@ -112,4 +112,3 @@ jobs:
         run: |
           find packages/${{ matrix.package }} -name "*.tsbuildinfo" -delete
           find packages/${{ matrix.package }} -name "node_modules" -type d -prune -exec rm -rf {} +
-

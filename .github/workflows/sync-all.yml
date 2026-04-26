@@ -24,7 +24,7 @@ jobs:
             exit 1
           fi
 
-          SERVICES=("api-gateway" "ms-event" "ms-post" "ms-social" "ms-user" "nativapp" "npm-packages" "changelog-checker" "proto-registry")
+          SERVICES=("api-gateway" "ms-event" "ms-post" "ms-social" "ms-user" "nativapp" "npm-packages" "changelog-checker" "proto-registry" "outbox-runners")
 
           for repo in "${SERVICES[@]}"; do
             echo "Processing $repo..."

@@ -162,6 +162,23 @@ services:
       timeout: 5s
       retries: 5
 
+  postgres-social:
+    image: postgres:16-alpine
+    container_name: postgres-social
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: ms_social
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres_social_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d ms_social"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   neo4j-social:
     image: neo4j:5.20-community
     ports:
@@ -183,6 +200,7 @@ volumes:
   postgres_user_data:
   postgres_post_data:
   postgres_event_data:
+  postgres_social_data:
   neo4j_social_data:
   grafana_data:
   prometheus_data:

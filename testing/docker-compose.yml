@@ -16,19 +16,6 @@ services:
     profiles:
       - test
 
-  test-redis:
-    image: redis:7-alpine
-    container_name: volontariapp-test-redis
-    ports:
-      - '6378:6379'
-    healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    profiles:
-      - test
-
   postgres:
     image: postgis/postgis:15-3.3
     ports:
@@ -69,3 +56,5 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    profiles:
+      - test

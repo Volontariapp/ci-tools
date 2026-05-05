@@ -51,6 +51,8 @@ services:
       --appendfsync everysec
       --save 60 1
       --loglevel warning
+      --requirepass password
+      --user user on >password ~* +@all
     ports:
       - '6379:6379'
     healthcheck:

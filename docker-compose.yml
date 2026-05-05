@@ -1,21 +1,21 @@
 services:
   otel-collector:
     image: otel/opentelemetry-collector:latest
-    command: ["--config=/etc/otelcol/config.yaml"]
+    command: ['--config=/etc/otelcol/config.yaml']
     profiles:
       - monitoring
     volumes:
       - ./monitoring/otel-collector-config.yaml:/etc/otelcol/config.yaml
     ports:
-      - "1888:1888" # pprof extension
-      - "8888:8888" # Prometheus metrics exposed by the Collector
-      - "8889:8889" # Prometheus exporter metrics
-      - "13133:13133" # health_check extension
-      - "4317:4317" # OTLP gRPC receiver
-      - "4318:4318" # OTLP http receiver
-      - "55679:55679" # zpages extension
+      - '1888:1888' # pprof extension
+      - '8888:8888' # Prometheus metrics exposed by the Collector
+      - '8889:8889' # Prometheus exporter metrics
+      - '13133:13133' # health_check extension
+      - '4317:4317' # OTLP gRPC receiver
+      - '4318:4318' # OTLP http receiver
+      - '55679:55679' # zpages extension
     healthcheck:
-      test: ["CMD", "/otelcol", "status"]
+      test: ['CMD', '/otelcol', 'status']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -27,14 +27,10 @@ services:
     profiles:
       - monitoring
     ports:
-      - "16686:16686" # UI
-      - "4317" # OTLP gRPC default port
+      - '16686:16686' # UI
+      - '4317' # OTLP gRPC default port
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "wget --quiet --tries=1 --spider http://localhost:14269/health || exit 1",
-        ]
+      test: ['CMD-SHELL', 'wget --quiet --tries=1 --spider http://localhost:14269/health || exit 1']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -45,25 +41,17 @@ services:
     profiles:
       - monitoring
     ports:
-      - "9090:9090"
+      - '9090:9090'
     volumes:
       - ./monitoring/prometheus.yaml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus
     command:
-      - "--config.file=/etc/prometheus/prometheus.yml"
-      - "--storage.tsdb.path=/prometheus"
-      - "--web.console.libraries=/etc/prometheus/console_libraries"
-      - "--web.console.templates=/etc/prometheus/console_templates"
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/console_templates'
     healthcheck:
-      test:
-        [
-          "CMD",
-          "wget",
-          "--quiet",
-          "--tries=1",
-          "--spider",
-          "http://localhost:9090/-/healthy",
-        ]
+      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:9090/-/healthy']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -74,7 +62,7 @@ services:
     profiles:
       - monitoring
     ports:
-      - "3000:3000"
+      - '3000:3000'
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
     volumes:
@@ -84,7 +72,7 @@ services:
       prometheus:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
+      test: ['CMD-SHELL', 'curl -f http://localhost:3000/api/health || exit 1']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -95,17 +83,9 @@ services:
     profiles:
       - monitoring
     ports:
-      - "9115:9115"
+      - '9115:9115'
     healthcheck:
-      test:
-        [
-          "CMD",
-          "wget",
-          "--quiet",
-          "--tries=1",
-          "--spider",
-          "http://localhost:9115/-/healthy",
-        ]
+      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:9115/-/healthy']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -118,11 +98,11 @@ services:
       POSTGRES_PASSWORD: password
       POSTGRES_DB: ms_user
     ports:
-      - "5432:5432"
+      - '5432:5432'
     volumes:
       - postgres_user_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d ms_user"]
+      test: ['CMD-SHELL', 'pg_isready -U user -d ms_user']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -135,11 +115,11 @@ services:
       POSTGRES_PASSWORD: password
       POSTGRES_DB: ms_post
     ports:
-      - "5433:5432"
+      - '5433:5432'
     volumes:
       - postgres_post_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d ms_post"]
+      test: ['CMD-SHELL', 'pg_isready -U user -d ms_post']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -153,11 +133,11 @@ services:
       POSTGRES_PASSWORD: password
       POSTGRES_DB: ms_event
     ports:
-      - "5434:5432"
+      - '5434:5432'
     volumes:
       - postgres_event_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d ms_event"]
+      test: ['CMD-SHELL', 'pg_isready -U user -d ms_event']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -170,11 +150,11 @@ services:
       POSTGRES_PASSWORD: password
       POSTGRES_DB: ms_social
     ports:
-      - "5435:5432"
+      - '5435:5432'
     volumes:
       - postgres_social_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d ms_social"]
+      test: ['CMD-SHELL', 'pg_isready -U user -d ms_social']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -182,23 +162,63 @@ services:
   neo4j-social:
     image: neo4j:5.20-community
     ports:
-      - "7474:7474"
-      - "7687:7687"
+      - '7474:7474'
+      - '7687:7687'
     environment:
       NEO4J_AUTH: neo4j/password
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "wget --no-verbose --tries=1 --spider http://localhost:7474 || exit 1",
-        ]
+      test: ['CMD-SHELL', 'wget --no-verbose --tries=1 --spider http://localhost:7474 || exit 1']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  services:
+  test-db:
+    image: postgres:16-alpine
+    container_name: volontariapp-test-db
+    environment:
+      POSTGRES_USER: testuser
+      POSTGRES_PASSWORD: testpassword
+      POSTGRES_DB: volontariapp_test
+    ports:
+      - '5433:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U testuser -d volontariapp_test']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - test
+
+  postgres:
+    image: postgis/postgis:15-3.3
+    ports:
+      - '5432:5432'
+    environment:
+      POSTGRES_DB: bridge_test
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U user -d bridge_test']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  neo4j:
+    image: neo4j:5-community
+    ports:
+      - '7474:7474'
+      - '7687:7687'
+    environment:
+      NEO4J_AUTH: neo4j/password
+    healthcheck:
+      test: ['CMD-SHELL', 'wget --no-verbose --tries=1 --spider http://localhost:7474 || exit 1']
       interval: 5s
       timeout: 5s
       retries: 5
 
   redis:
     image: redis:7-alpine
-    container_name: redis
     command: >
       redis-server
       --appendonly yes
@@ -206,13 +226,10 @@ services:
       --save 60 1
       --loglevel warning
       --requirepass password
-      --user user on >password ~* +@all
     ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
+      - '6379:6379'
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', '-a', 'password', 'ping']
       interval: 5s
       timeout: 5s
       retries: 5

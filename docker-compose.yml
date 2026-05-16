@@ -18,12 +18,6 @@ x-network-config: &network-config
     - "5000"
 
 # --- 3. THE MICROSERVICE COMMON ENGINE ---
-x-grpc-routing: &grpc-routing
-  MS_EVENT_URL: "ms-event:5000"
-  MS_POST_URL: "ms-post:5000"
-  MS_SOCIAL_URL: "ms-social:5000"
-  MS_USER_URL: "ms-user:5000"
-
 x-ms-common-env: &ms-common-env
   PORT: "5000"
   # Shared Redis configuration
@@ -89,6 +83,7 @@ x-db-social: &db-social
 services:
   otel-collector:
     image: otel/opentelemetry-collector:latest
+    container_name: otel-collector
     command: ['--config=/etc/otelcol/config.yaml']
     profiles:
       - monitoring
@@ -112,6 +107,7 @@ services:
 
   jaeger:
     image: jaegertracing/jaeger:latest
+    container_name: jaeger
     profiles:
       - monitoring
     ports:
@@ -261,6 +257,7 @@ services:
 
   neo4j-social:
     image: neo4j:5.20-community
+    container_name: neo4j-social
     profiles: ["ms-social", "all"]
     ports:
       - '7474:7474'
@@ -277,6 +274,7 @@ services:
 
   redis:
     image: redis:7-alpine
+    container_name: redis
     profiles: ["ms-user", "ms-post", "ms-event", "ms-social", "all"]
     command: >
       redis-server
@@ -299,6 +297,7 @@ services:
   api-gateway:
     build:
       context: https://github.com/Volontariapp/api-gateway.git#${API_GATEWAY_BRANCH:-main}
+    container_name: api-gateway
     <<: *network-config
     profiles: ["ms-user", "ms-post", "ms-event", "ms-social", "all"]
 
@@ -316,6 +315,7 @@ services:
   ms-social: 
     build:
       context: https://github.com/Volontariapp/ms-social.git#${MS_SOCIAL_BRANCH:-main}
+    container_name: ms-social
     <<: *microservice-base
     profiles: ["ms-social", "all"]
     environment:
@@ -328,6 +328,7 @@ services:
   ms-user:
     build:
       context: https://github.com/Volontariapp/ms-user.git#${MS_USER_BRANCH:-main}
+    container_name: ms-user
     <<: *microservice-base
     profiles: ["ms-user", "all"]
     environment:
@@ -339,6 +340,7 @@ services:
   ms-post:
     build:
       context: https://github.com/Volontariapp/ms-post.git#${MS_POST_BRANCH:-main}
+    container_name: ms-post
     <<: *microservice-base
     profiles: ["ms-post", "all"]
     environment:
@@ -350,6 +352,7 @@ services:
   ms-event:
     build:
       context: https://github.com/Volontariapp/ms-event.git#${MS_EVENT_BRANCH:-main}
+    container_name: ms-event
     <<: *microservice-base
     profiles: ["ms-event", "all"]
     environment:

@@ -85,8 +85,6 @@ services:
     image: otel/opentelemetry-collector:latest
     container_name: otel-collector
     command: ['--config=/etc/otelcol/config.yaml']
-    profiles:
-      - monitoring
     volumes:
       - ./monitoring/otel-collector-config.yaml:/etc/otelcol/config.yaml
     ports:
@@ -108,8 +106,6 @@ services:
   jaeger:
     image: jaegertracing/jaeger:latest
     container_name: jaeger
-    profiles:
-      - monitoring
     ports:
       - '16686:16686' # UI
       - '4317' # OTLP gRPC default port
@@ -122,8 +118,6 @@ services:
   prometheus:
     image: prom/prometheus:latest
     container_name: prometheus
-    profiles:
-      - monitoring
     ports:
       - '9090:9090'
     volumes:
@@ -143,8 +137,6 @@ services:
   grafana:
     image: grafana/grafana:latest
     container_name: grafana
-    profiles:
-      - monitoring
     ports:
       - '3000:3000'
     environment:
@@ -164,8 +156,6 @@ services:
   blackbox-exporter:
     image: prom/blackbox-exporter:latest
     container_name: blackbox-exporter
-    profiles:
-      - monitoring
     ports:
       - '9115:9115'
     healthcheck:
@@ -177,7 +167,6 @@ services:
   postgres-user:
     image: postgres:16-alpine
     container_name: postgres-user
-    profiles: ["ms-user", "all"]
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
@@ -197,7 +186,6 @@ services:
   postgres-post:
     image: postgres:16-alpine
     container_name: postgres-post
-    profiles: ["ms-post", "all"]
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
@@ -218,7 +206,6 @@ services:
     image: postgis/postgis:16-3.4
     platform: linux/amd64
     container_name: postgres-event
-    profiles: ["ms-event", "all"]
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
@@ -238,7 +225,6 @@ services:
   postgres-social:
     image: postgres:16-alpine
     container_name: postgres-social
-    profiles: ["ms-social", "all"]
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
@@ -258,7 +244,6 @@ services:
   neo4j-social:
     image: neo4j:5.20-community
     container_name: neo4j-social
-    profiles: ["ms-social", "all"]
     ports:
       - '7474:7474'
       - '7687:7687'
@@ -275,7 +260,6 @@ services:
   redis:
     image: redis:7-alpine
     container_name: redis
-    profiles: ["ms-user", "ms-post", "ms-event", "ms-social", "all"]
     command: >
       redis-server
       --requirepass password
@@ -299,7 +283,6 @@ services:
       context: https://github.com/Volontariapp/api-gateway.git#${API_GATEWAY_BRANCH:-main}
     container_name: api-gateway
     <<: *network-config
-    profiles: ["ms-user", "ms-post", "ms-event", "ms-social", "all"]
 
     environment:
       PORT: "5000"
@@ -317,7 +300,6 @@ services:
       context: https://github.com/Volontariapp/ms-social.git#${MS_SOCIAL_BRANCH:-main}
     container_name: ms-social
     <<: *microservice-base
-    profiles: ["ms-social", "all"]
     environment:
       <<: [*ms-common-env, *db-social]
     depends_on:
@@ -330,7 +312,6 @@ services:
       context: https://github.com/Volontariapp/ms-user.git#${MS_USER_BRANCH:-main}
     container_name: ms-user
     <<: *microservice-base
-    profiles: ["ms-user", "all"]
     environment:
       <<: [*ms-common-env, *db-user]
     depends_on:
@@ -342,7 +323,6 @@ services:
       context: https://github.com/Volontariapp/ms-post.git#${MS_POST_BRANCH:-main}
     container_name: ms-post
     <<: *microservice-base
-    profiles: ["ms-post", "all"]
     environment:
       <<: [*ms-common-env, *db-post]
     depends_on:
@@ -354,7 +334,6 @@ services:
       context: https://github.com/Volontariapp/ms-event.git#${MS_EVENT_BRANCH:-main}
     container_name: ms-event
     <<: *microservice-base
-    profiles: ["ms-event", "all"]
     environment:
       <<: [*ms-common-env, *db-event]
     depends_on:

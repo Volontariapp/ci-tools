@@ -33,44 +33,44 @@ This `ci-tools` repository solves this by extracting the common CI configuration
 
 ### Infrastructure & Monitoring (`docker-compose.yml`)
 
-This repository includes a complete local development infrastructure and observability stack, optimized for modular testing using **Docker Compose Profiles**.
+This repository includes a complete local development infrastructure and observability stack.
 
 #### 🗄️ Databases & Services
 
 All services share a unified `volontariapp-network` for seamless local development and database inspection. Each microservice is configured via discrete environment variables (`DB_HOST`, `DB_PORT`, etc.) rather than a single URL.
 
-| Service       | Postgres Port | Neo4j (HTTP/Bolt) | Profile     |
-| ------------- | ------------- | ----------------- | ----------- |
-| `ms-user`     | `5432`        | -                 | `ms-user`   |
-| `ms-post`     | `5433`        | -                 | `ms-post`   |
-| `ms-event`    | `5434`        | -                 | `ms-event`  |
-| `ms-social`   | `5435`        | `7474` / `7687`   | `ms-social` |
+| Service       | Postgres Port | Neo4j (HTTP/Bolt) |
+| ------------- | ------------- | ----------------- |
+| `ms-user`     | `5432`        | -                 |
+| `ms-post`     | `5433`        | -                 |
+| `ms-event`    | `5434`        | -                 |
+| `ms-social`   | `5435`        | `7474` / `7687`   |
 
-#### 🚀 Modular Startup (Profiles)
+#### 🚀 Getting Started
 
-The stack is designed to be modular. You can start only the services you need to save resources and focus on a specific microservice.
-
-##### Examples
+To start the entire ecosystem:
 
 ```bash
-# Start a specific microservice stack (includes its DB + Redis + Gateway)
-docker compose --profile ms-user up -d
-
-# Start the whole ecosystem
-docker compose --profile all up -d
-
-# Start databases + monitoring stack
-docker compose --profile all --profile monitoring up -d
+docker compose up -d
 ```
 
-##### Available Profiles
+#### 🌿 Branch Configuration
 
-- **`ms-user`**: Starts `api-gateway`, `ms-user`, `postgres-user`, and `redis`.
-- **`ms-post`**: Starts `api-gateway`, `ms-post`, `postgres-post`, and `redis`.
-- **`ms-event`**: Starts `api-gateway`, `ms-event`, `postgres-event`, and `redis`.
-- **`ms-social`**: Starts `api-gateway`, `ms-social`, `postgres-social`, `neo4j-social`, and `redis`.
-- **`all`**: Starts every microservice and its respective database.
-- **`monitoring`**: Starts the observability stack (Grafana, Jaeger, OTel, Prometheus).
+By default, the stack builds services from the `main` branch of their respective repositories. You can override this using environment variables to test specific features or versions.
+
+| Variable             | Description                                | Default |
+| -------------------- | ------------------------------------------ | ------- |
+| `API_GATEWAY_BRANCH` | Branch for the `api-gateway` service       | `main`  |
+| `MS_USER_BRANCH`     | Branch for the `ms-user` microservice      | `main`  |
+| `MS_POST_BRANCH`     | Branch for the `ms-post` microservice      | `main`  |
+| `MS_EVENT_BRANCH`    | Branch for the `ms-event` microservice     | `main`  |
+| `MS_SOCIAL_BRANCH`   | Branch for the `ms-social` microservice    | `main`  |
+
+**Example: Start with a specific feature branch**
+
+```bash
+MS_USER_BRANCH=feat/new-auth docker compose up -d
+```
 
 #### 📊 Observability Stack
 

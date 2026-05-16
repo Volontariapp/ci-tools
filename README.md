@@ -33,32 +33,46 @@ This `ci-tools` repository solves this by extracting the common CI configuration
 
 ### Infrastructure & Monitoring (`docker-compose.yml`)
 
-This repository includes a complete local development infrastructure and observability stack.
+This repository includes a complete local development infrastructure and observability stack, optimized for modular testing using **Docker Compose Profiles**.
 
-#### 🗄️ Databases
+#### 🗄️ Databases & Services
 
-We use a dedicated pair of PostgreSQL and Neo4j for each microservice to ensure complete isolation:
+All services share a unified `volontariapp-network` for seamless local development and database inspection. Each microservice is configured via discrete environment variables (`DB_HOST`, `DB_PORT`, etc.) rather than a single URL.
 
-| Service    | Postgres Port | Neo4j (HTTP/Bolt) |
-| ---------- | ------------- | ----------------- |
-| `ms-user`  | `5432`        | `7474` / `7687`   |
-| `ms-post`  | `5433`        | `7475` / `7688`   |
-| `ms-event` | `5434`        | `7476` / `7689`   |
+| Service       | Postgres Port | Neo4j (HTTP/Bolt) | Profile     |
+| ------------- | ------------- | ----------------- | ----------- |
+| `ms-user`     | `5432`        | -                 | `ms-user`   |
+| `ms-post`     | `5433`        | -                 | `ms-post`   |
+| `ms-event`    | `5434`        | -                 | `ms-event`  |
+| `ms-social`   | `5435`        | `7474` / `7687`   | `ms-social` |
 
-#### 📊 Observability Stack
+#### 🚀 Modular Startup (Profiles)
 
-The monitoring stack includes **Grafana**, **Prometheus**, **OpenTelemetry Collector**, and **Jaeger**.
-These services are placed behind a Docker Compose **profile** called `monitoring`.
+The stack is designed to be modular. You can start only the services you need to save resources and focus on a specific microservice.
 
-##### Starting the stack
+##### Examples
 
 ```bash
-# Start only databases
-docker compose up -d
+# Start a specific microservice stack (includes its DB + Redis + Gateway)
+docker compose --profile ms-user up -d
+
+# Start the whole ecosystem
+docker compose --profile all up -d
 
 # Start databases + monitoring stack
-docker compose --profile monitoring up -d
+docker compose --profile all --profile monitoring up -d
 ```
+
+##### Available Profiles
+
+- **`ms-user`**: Starts `api-gateway`, `ms-user`, `postgres-user`, and `redis`.
+- **`ms-post`**: Starts `api-gateway`, `ms-post`, `postgres-post`, and `redis`.
+- **`ms-event`**: Starts `api-gateway`, `ms-event`, `postgres-event`, and `redis`.
+- **`ms-social`**: Starts `api-gateway`, `ms-social`, `postgres-social`, `neo4j-social`, and `redis`.
+- **`all`**: Starts every microservice and its respective database.
+- **`monitoring`**: Starts the observability stack (Grafana, Jaeger, OTel, Prometheus).
+
+#### 📊 Observability Stack
 
 ##### Available UIs
 

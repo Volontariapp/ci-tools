@@ -54,22 +54,32 @@ To start the entire ecosystem:
 docker compose up -d
 ```
 
-#### 🌿 Branch Configuration
+#### 🌿 Hybrid CI / Development Strategy
 
-By default, the stack builds services from the `main` branch of their respective repositories. You can override this using environment variables to test specific features or versions.
+This stack uses a **Hybrid Strategy** designed for high-performance CI/CD. By default, all services pull their `latest` image from **GHCR** (representing the `main` branch). This allows you to test a single service without building the entire ecosystem.
 
-| Variable             | Description                                | Default |
-| -------------------- | ------------------------------------------ | ------- |
-| `API_GATEWAY_BRANCH` | Branch for the `api-gateway` service       | `main`  |
-| `MS_USER_BRANCH`     | Branch for the `ms-user` microservice      | `main`  |
-| `MS_POST_BRANCH`     | Branch for the `ms-post` microservice      | `main`  |
-| `MS_EVENT_BRANCH`    | Branch for the `ms-event` microservice     | `main`  |
-| `MS_SOCIAL_BRANCH`   | Branch for the `ms-social` microservice    | `main`  |
+To build a specific service from source (local or remote), you can override its **Build Context**.
 
-**Example: Start with a specific feature branch**
+| Variable               | Description                                           | Default (GHCR Image) |
+| ---------------------- | ----------------------------------------------------- | -------------------- |
+| `API_GATEWAY_CONTEXT`  | Build context for `api-gateway`                       | `latest` image       |
+| `MS_USER_CONTEXT`      | Build context for `ms-user`                           | `latest` image       |
+| `MS_POST_CONTEXT`      | Build context for `ms-post`                           | `latest` image       |
+| `MS_EVENT_CONTEXT`     | Build context for `ms-event`                          | `latest` image       |
+| `MS_SOCIAL_CONTEXT`    | Build context for `ms-social`                         | `latest` image       |
+
+**Example: Build a service locally**
+
+In a microservice repository, you can build it from local code while pulling others from GHCR:
 
 ```bash
-MS_USER_BRANCH=feat/new-auth docker compose up -d
+MS_POST_CONTEXT=. docker compose up -d --build --wait
+```
+
+**Example: Build from a specific remote branch**
+
+```bash
+MS_USER_CONTEXT=https://github.com/Volontariapp/ms-user.git#feat/new-auth docker compose up -d --build --wait
 ```
 
 #### 📊 Observability Stack

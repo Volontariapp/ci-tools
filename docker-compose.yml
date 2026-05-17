@@ -84,6 +84,7 @@ x-db-social: &db-social
 services:
   otel-collector:
     image: otel/opentelemetry-collector:latest
+    command: ['--config=/etc/otelcol/config.yaml']
     container_name: otel-collector
     profiles:
       - monitoring
@@ -301,7 +302,7 @@ services:
   # API-GATEWAY
   api-gateway:
     image: ghcr.io/volontariapp/api-gateway:latest
-    build: ${API_GATEWAY_CONTEXT:-}
+    build: ${API_GATEWAY_CONTEXT:-null}
     container_name: api-gateway
     <<: *network-config
 
@@ -325,7 +326,7 @@ services:
   # Micro-services
   ms-social: 
     image: ghcr.io/volontariapp/ms-social:latest
-    build: ${MS_SOCIAL_CONTEXT:-}
+    build: ${MS_SOCIAL_CONTEXT:-null}
     container_name: ms-social
     <<: *microservice-base
     environment:
@@ -337,7 +338,7 @@ services:
   
   ms-user:
     image: ghcr.io/volontariapp/ms-user:latest
-    build: ${MS_USER_CONTEXT:-}
+    build: ${MS_USER_CONTEXT:-null}
     container_name: ms-user
     <<: *microservice-base
     environment:
@@ -348,7 +349,7 @@ services:
   
   ms-post:
     image: ghcr.io/volontariapp/ms-post:latest
-    build: ${MS_POST_CONTEXT:-}
+    build: ${MS_POST_CONTEXT:-null}
     container_name: ms-post
     <<: *microservice-base
     environment:
@@ -359,7 +360,7 @@ services:
   
   ms-event:
     image: ghcr.io/volontariapp/ms-event:latest
-    build: ${MS_EVENT_CONTEXT:-}
+    build: ${MS_EVENT_CONTEXT:-null}
     container_name: ms-event
     <<: *microservice-base
     environment:

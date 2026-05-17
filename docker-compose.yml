@@ -1,4 +1,5 @@
 
+
 networks:
   volontariapp-network:
     driver: bridge
@@ -84,6 +85,10 @@ services:
   otel-collector:
     image: otel/opentelemetry-collector:latest
     container_name: otel-collector
+    profiles:
+      - monitoring
+    networks:
+      - volontariapp-network
     command: ['--config=/etc/otelcol/config.yaml']
     volumes:
       - ./monitoring/otel-collector-config.yaml:/etc/otelcol/config.yaml
@@ -106,6 +111,10 @@ services:
   jaeger:
     image: jaegertracing/jaeger:latest
     container_name: jaeger
+    profiles:
+      - monitoring
+    networks:
+      - volontariapp-network
     ports:
       - '16686:16686' # UI
       - '4317' # OTLP gRPC default port
@@ -118,6 +127,10 @@ services:
   prometheus:
     image: prom/prometheus:latest
     container_name: prometheus
+    profiles:
+      - monitoring
+    networks:
+      - volontariapp-network
     ports:
       - '9090:9090'
     volumes:
@@ -137,6 +150,10 @@ services:
   grafana:
     image: grafana/grafana:latest
     container_name: grafana
+    profiles:
+      - monitoring
+    networks:
+      - volontariapp-network
     ports:
       - '3000:3000'
     environment:
@@ -156,6 +173,10 @@ services:
   blackbox-exporter:
     image: prom/blackbox-exporter:latest
     container_name: blackbox-exporter
+    profiles:
+      - monitoring
+    networks:
+      - volontariapp-network
     ports:
       - '9115:9115'
     healthcheck:
@@ -279,8 +300,8 @@ services:
   
   # API-GATEWAY
   api-gateway:
-    build:
-      context: https://github.com/Volontariapp/api-gateway.git#${API_GATEWAY_BRANCH:-main}
+    image: ghcr.io/volontariapp/api-gateway:latest
+    build: ${API_GATEWAY_CONTEXT:-}
     container_name: api-gateway
     <<: *network-config
 
@@ -289,15 +310,22 @@ services:
       <<: *grpc-routing
 
     depends_on:
-      ms-social: { condition: service_healthy, required: false }
-      ms-user:   { condition: service_healthy, required: false }
-      ms-post:   { condition: service_healthy, required: false }
-      ms-event:  { condition: service_healthy, required: false }
+      ms-social: { condition: service_healthy }
+      ms-user:   { condition: service_healthy }
+      ms-post:   { condition: service_healthy }
+      ms-event:  { condition: service_healthy }
+
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   # Micro-services
   ms-social: 
-    build:
-      context: https://github.com/Volontariapp/ms-social.git#${MS_SOCIAL_BRANCH:-main}
+    image: ghcr.io/volontariapp/ms-social:latest
+    build: ${MS_SOCIAL_CONTEXT:-}
     container_name: ms-social
     <<: *microservice-base
     environment:
@@ -308,8 +336,8 @@ services:
       neo4j-social: { condition: service_healthy }
   
   ms-user:
-    build:
-      context: https://github.com/Volontariapp/ms-user.git#${MS_USER_BRANCH:-main}
+    image: ghcr.io/volontariapp/ms-user:latest
+    build: ${MS_USER_CONTEXT:-}
     container_name: ms-user
     <<: *microservice-base
     environment:
@@ -319,8 +347,8 @@ services:
       postgres-user: { condition: service_healthy }
   
   ms-post:
-    build:
-      context: https://github.com/Volontariapp/ms-post.git#${MS_POST_BRANCH:-main}
+    image: ghcr.io/volontariapp/ms-post:latest
+    build: ${MS_POST_CONTEXT:-}
     container_name: ms-post
     <<: *microservice-base
     environment:
@@ -330,8 +358,8 @@ services:
       postgres-post: { condition: service_healthy }
   
   ms-event:
-    build:
-      context: https://github.com/Volontariapp/ms-event.git#${MS_EVENT_BRANCH:-main}
+    image: ghcr.io/volontariapp/ms-event:latest
+    build: ${MS_EVENT_CONTEXT:-}
     container_name: ms-event
     <<: *microservice-base
     environment:

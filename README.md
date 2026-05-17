@@ -12,6 +12,7 @@ This `ci-tools` repository solves this by extracting the common CI configuration
 
 ### Reusable Workflows (`.github/workflows/`)
 
+- **`validate-compose.yml`**: Automatically validates the syntax and configuration of all Docker Compose files in this repository.
 - **`build-changelog-checker.yml`**: A reusable workflow that builds and tests the `changelog-checker` Go binary, and updates the `npm-packages` `tools/` folder.
 - **`npm-packages-ci.yml`**: A complete, optimized CI sequence for the monorepo `npm-packages`. It isolates tests per library and checks changelogs smartly against modifications.
 - **`sync-all.yml`**: A powerful synchronization workflow. When pushed to `ci-tools`, it clones every single microservice repository and runs an automated script to commit and push the updated CI configuration pointer everywhere.
@@ -31,13 +32,9 @@ This `ci-tools` repository solves this by extracting the common CI configuration
       node-version: 24.14.0
   ```
 
-### Infrastructure & Monitoring (`docker-compose.yml`)
+## 🗄️ Infrastructure & Services (`docker-compose.yml`)
 
-This repository includes a complete local development infrastructure and observability stack.
-
-#### 🗄️ Databases & Services
-
-All services share a unified `volontariapp-network` for seamless local development and database inspection. Each microservice is configured via discrete environment variables (`DB_HOST`, `DB_PORT`, etc.) rather than a single URL.
+This repository provides a unified local development environment. All services share a `volontariapp-network` for seamless communication.
 
 | Service       | Postgres Port | Neo4j (HTTP/Bolt) |
 | ------------- | ------------- | ----------------- |
@@ -46,45 +43,51 @@ All services share a unified `volontariapp-network` for seamless local developme
 | `ms-event`    | `5434`        | -                 |
 | `ms-social`   | `5435`        | `7474` / `7687`   |
 
-#### 🚀 Getting Started
+### 🌿 Hybrid CI / Development Strategy
 
-To start the entire ecosystem:
+By default, all services pull their `latest` image from **GHCR**. This allows you to run the full stack without building everything locally. You can use environment variables to target specific versions or branches.
 
+| Variable             | Description                                | Default  |
+| -------------------- | ------------------------------------------ | -------- |
+| `API_GATEWAY_TAG`    | Tag for `api-gateway` and `api-gateway-e2e`| `latest` |
+| `MS_USER_TAG`        | Tag for `ms-user`                          | `latest` |
+| `MS_POST_TAG`        | Tag for `ms-post`                          | `latest` |
+| `MS_EVENT_TAG`       | Tag for `ms-event`                         | `latest` |
+| `MS_SOCIAL_TAG`      | Tag for `ms-social`                        | `latest` |
+
+**Example: Run with a specific branch image**
 ```bash
-docker compose up -d
+MS_USER_TAG=feat-new-auth docker compose up -d
 ```
 
-#### 🌿 Hybrid CI / Development Strategy
+### 🛠️ Local Development & Overrides
 
-This stack uses a **Hybrid Strategy** designed for high-performance CI/CD. By default, all services pull their `latest` image from **GHCR** (representing the `main` branch). This allows you to test a single service without building the entire ecosystem.
+For local development (building from source), use a `docker-compose.override.yml` file. This is the only stable way to swap an image for a local build.
 
-To build a specific service from source (local or remote), you can override its **Build Context**.
+#### Using Profiles
 
-| Variable               | Description                                           | Default (GHCR Image) |
-| ---------------------- | ----------------------------------------------------- | -------------------- |
-| `API_GATEWAY_CONTEXT`  | Build context for `api-gateway`                       | `latest` image       |
-| `MS_USER_CONTEXT`      | Build context for `ms-user`                           | `latest` image       |
-| `MS_POST_CONTEXT`      | Build context for `ms-post`                           | `latest` image       |
-| `MS_EVENT_CONTEXT`     | Build context for `ms-event`                          | `latest` image       |
-| `MS_SOCIAL_CONTEXT`    | Build context for `ms-social`                         | `latest` image       |
+We use **Docker Compose Profiles** to keep the environment lean:
 
-**Example: Build a service locally**
+- **(Default)**: Starts only databases and core infrastructure.
+- **`monitoring`**: Starts the full observability stack (Grafana, Prometheus, etc.).
+- **`e2e`**: Starts the API Gateway and its dedicated test runner.
+- **`local-xxx`**: Reserved for local build overrides (e.g., `local-ms-user`, `local-api-gateway`).
 
-In a microservice repository, you can build it from local code while pulling others from GHCR:
-
+**Example: Launch E2E tests locally**
 ```bash
-MS_POST_CONTEXT=. docker compose up -d --build --wait
+# In api-gateway folder
+docker compose -f ../ci-tools/docker-compose.yml -f docker-compose.override.yml --profile e2e up --build
 ```
 
-**Example: Build from a specific remote branch**
-
+**Example: Local development of two services**
 ```bash
-MS_USER_CONTEXT=https://github.com/Volontariapp/ms-user.git#feat/new-auth docker compose up -d --build --wait
+# Mix local builds and specific remote versions
+MS_USER_TAG=develop docker compose -f ../ci-tools/docker-compose.yml -f docker-compose.override.yml --profile local-ms-post up --build
 ```
 
-#### 📊 Observability Stack
+## 📊 Observability Stack
 
-##### Available UIs
+### Available UIs
 
 | Service        | URL                                              | Description                                       |
 | -------------- | ------------------------------------------------ | ------------------------------------------------- |
@@ -92,15 +95,7 @@ MS_USER_CONTEXT=https://github.com/Volontariapp/ms-user.git#feat/new-auth docker
 | **Jaeger UI**  | [http://localhost:16686](http://localhost:16686) | Trace visualization and search                    |
 | **Prometheus** | [http://localhost:9090](http://localhost:9090)   | Metrics exploration & scraping                    |
 
-#### 🩺 Health Checks & Status Page
-
-Every service is equipped with automated health checks (`healthcheck`).
-A pre-configured **Grafana Status Page** is available at startup, providing:
-
-- **Real-time Status**: UP/DOWN detection for all databases and core services.
-- **Uptime History**: State timeline bands showing availability over time.
-
-#### 🏗️ Architecture
+### 🏗️ Architecture
 
 ```
 Your App ──OTLP──▶ OTel Collector ──OTLP──▶ Jaeger
@@ -111,3 +106,11 @@ Your App ──OTLP──▶ OTel Collector ──OTLP──▶ Jaeger
 ```
 
 The **OTel Collector** receives traces via OTLP and forwards them to **Jaeger**. **Prometheus** monitors service connectivity via **Blackbox Exporter** (TCP probes) and direct metrics scraping, which are then visualized in **Grafana**.
+
+### 🩺 Health Checks & Status Page
+
+Every service is equipped with automated health checks (`healthcheck`).
+A pre-configured **Grafana Status Page** is available at startup, providing:
+
+- **Real-time Status**: UP/DOWN detection for all databases and core services.
+- **Uptime History**: State timeline bands showing availability over time.

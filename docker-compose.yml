@@ -1,5 +1,3 @@
-
-
 networks:
   volontariapp-network:
     driver: bridge
@@ -300,8 +298,7 @@ services:
   
   # API-GATEWAY
   api-gateway:
-    image: ghcr.io/volontariapp/api-gateway:latest
-    build: ${API_GATEWAY_CONTEXT:-null}
+    image: ghcr.io/volontariapp/api-gateway:${API_GATEWAY_TAG:-latest}
     container_name: api-gateway
     <<: *network-config
 
@@ -322,10 +319,23 @@ services:
       retries: 3
       start_period: 10s
 
+  # API-GATEWAY-E2E
+  api-gateway-e2e:
+    image: ghcr.io/volontariapp/api-gateway-e2e:${API_GATEWAY_TAG:-latest}
+    container_name: api-gateway-e2e
+    profiles:
+      - e2e
+    depends_on:
+      api-gateway: { condition: service_healthy }
+    networks:
+      - volontariapp-network
+    environment:
+      - NODE_ENV=test
+      - E2E_TARGET_URL=http://api-gateway:5000
+
   # Micro-services
   ms-social: 
-    image: ghcr.io/volontariapp/ms-social:latest
-    build: ${MS_SOCIAL_CONTEXT:-null}
+    image: ghcr.io/volontariapp/ms-social:${MS_SOCIAL_TAG:-latest}
     container_name: ms-social
     <<: *microservice-base
     environment:
@@ -336,8 +346,7 @@ services:
       neo4j-social: { condition: service_healthy }
   
   ms-user:
-    image: ghcr.io/volontariapp/ms-user:latest
-    build: ${MS_USER_CONTEXT:-null}
+    image: ghcr.io/volontariapp/ms-user:${MS_USER_TAG:-latest}
     container_name: ms-user
     <<: *microservice-base
     environment:
@@ -347,8 +356,7 @@ services:
       postgres-user: { condition: service_healthy }
   
   ms-post:
-    image: ghcr.io/volontariapp/ms-post:latest
-    build: ${MS_POST_CONTEXT:-null}
+    image: ghcr.io/volontariapp/ms-post:${MS_POST_TAG:-latest}
     container_name: ms-post
     <<: *microservice-base
     environment:
@@ -358,8 +366,7 @@ services:
       postgres-post: { condition: service_healthy }
   
   ms-event:
-    image: ghcr.io/volontariapp/ms-event:latest
-    build: ${MS_EVENT_CONTEXT:-null}
+    image: ghcr.io/volontariapp/ms-event:${MS_EVENT_TAG:-latest}
     container_name: ms-event
     <<: *microservice-base
     environment:

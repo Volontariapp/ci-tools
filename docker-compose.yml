@@ -4,21 +4,18 @@ networks:
 
 # --- 1. THE CENTRAL ROUTING TABLE (Shared by MS and Gateway) ---
 x-grpc-routing: &grpc-routing
-  MS_EVENT_URL: "ms-event:5000"
-  MS_POST_URL: "ms-post:5000"
-  MS_SOCIAL_URL: "ms-social:5000"
-  MS_USER_URL: "ms-user:5000"
+  MS_EVENT_URL: "ms-event:5003"
+  MS_POST_URL: "ms-post:5002"
+  MS_SOCIAL_URL: "ms-social:5004"
+  MS_USER_URL: "ms-user:5001"
 
 # --- 2. NETWORK & PORT BASIS ---
 x-network-config: &network-config
   networks:
     - volontariapp-network
-  expose: 
-    - "5000"
 
 # --- 3. THE MICROSERVICE COMMON ENGINE ---
 x-ms-common-env: &ms-common-env
-  PORT: "5000"
   # Shared Redis configuration
   REDIS_HOST: redis
   REDIS_PORT: 6379
@@ -35,7 +32,6 @@ x-microservice-base: &microservice-base
     <<: *ms-common-env
 
   healthcheck:
-    test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5000/health"]
     interval: 10s
     timeout: 5s
     retries: 3
@@ -47,7 +43,7 @@ x-db-common: &db-common
   DB_USERNAME: "user"
   DB_PASSWORD: "password"
   DB_MAX_POOL_SIZE: "10"
-  DB_SSL: "false"
+  DB_SSL: ""
 
 x-db-user: &db-user
   <<: *db-common
@@ -312,13 +308,6 @@ services:
       ms-post:   { condition: service_healthy }
       ms-event:  { condition: service_healthy }
 
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-
   # API-GATEWAY-E2E
   api-gateway-e2e:
     image: ghcr.io/volontariapp/api-gateway-e2e:${API_GATEWAY_TAG:-latest}
@@ -326,7 +315,7 @@ services:
     profiles:
       - e2e
     depends_on:
-      api-gateway: { condition: service_healthy }
+      api-gateway: { condition: service_started }
     networks:
       - volontariapp-network
     environment:
@@ -339,7 +328,10 @@ services:
     container_name: ms-social
     <<: *microservice-base
     environment:
+      PORT: "3004"
       <<: [*ms-common-env, *db-social]
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3004/health"]
     depends_on:
       <<: *redis-deps
       postgres-social: { condition: service_healthy }
@@ -350,7 +342,10 @@ services:
     container_name: ms-user
     <<: *microservice-base
     environment:
+      PORT: "3001"
       <<: [*ms-common-env, *db-user]
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
     depends_on:
       <<: *redis-deps
       postgres-user: { condition: service_healthy }
@@ -360,7 +355,10 @@ services:
     container_name: ms-post
     <<: *microservice-base
     environment:
+      PORT: "3002"
       <<: [*ms-common-env, *db-post]
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3002/health"]
     depends_on:
       <<: *redis-deps
       postgres-post: { condition: service_healthy }
@@ -370,7 +368,10 @@ services:
     container_name: ms-event
     <<: *microservice-base
     environment:
+      PORT: "3003"
       <<: [*ms-common-env, *db-event]
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3003/health"]
     depends_on:
       <<: *redis-deps
       postgres-event: { condition: service_healthy }

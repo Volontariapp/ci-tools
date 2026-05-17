@@ -47,11 +47,11 @@ jobs:
           yarn workspaces foreach -vpt --from "$PKG_NAME" -R run build
 
       - name: Build Test Database
-        if: ${{ matrix.package == 'database' || matrix.package == 'bridge' || matrix.package == 'bridge-nest' || matrix.package == 'health-check' || matrix.package == 'health-check-nest' || matrix.package == 'outbox' }}
+        if: ${{ matrix.package == 'database' || matrix.package == 'bridge' || matrix.package == 'bridge-nest' || matrix.package == 'health-check' || matrix.package == 'health-check-nest' || matrix.package == 'outbox' || matrix.package == 'workers' }}
         run: docker compose -f ci-tools/testing/docker-compose.yml --profile test build
 
       - name: Setup Test Database
-        if: ${{ matrix.package == 'database' || matrix.package == 'bridge' || matrix.package == 'bridge-nest' || matrix.package == 'health-check' || matrix.package == 'health-check-nest' || matrix.package == 'outbox' }}
+        if: ${{ matrix.package == 'database' || matrix.package == 'bridge' || matrix.package == 'bridge-nest' || matrix.package == 'health-check' || matrix.package == 'health-check-nest' || matrix.package == 'outbox' || matrix.package == 'workers' }}
         run: docker compose -f ci-tools/testing/docker-compose.yml --profile test up -d --wait
 
       - name: Domain Package CI

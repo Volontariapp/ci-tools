@@ -23,6 +23,15 @@ This `ci-tools` repository solves this by extracting the common CI configuration
   An optimized, reusable composite action setting up the precise Node.js context required by Volontariapp.
   It abstracts away the complexity of configuring Corepack and specific `node-version` rules.
 
+  **Usage example**:
+
+  ```yaml
+  - name: Setup Node & Yarn
+    uses: Volontariapp/ci-tools/.github/actions/setup-node-yarn@main
+    with:
+      node-version: 24.14.0
+  ```
+
 ## 🗄️ Infrastructure & Services (`docker-compose.yml`)
 
 This repository provides a unified local development environment. All services share a `volontariapp-network` for seamless communication.
@@ -62,7 +71,7 @@ We use **Docker Compose Profiles** to keep the environment lean:
 - **(Default)**: Starts only databases and core infrastructure.
 - **`monitoring`**: Starts the full observability stack (Grafana, Prometheus, etc.).
 - **`e2e`**: Starts the API Gateway and its dedicated test runner.
-- **`dev-xxx`**: Reserved for local build overrides (e.g., `dev-user`, `dev-gateway`).
+- **`local-xxx`**: Reserved for local build overrides (e.g., `local-ms-user`, `local-api-gateway`).
 
 **Example: Launch E2E tests locally**
 ```bash
@@ -73,10 +82,12 @@ docker compose -f ../ci-tools/docker-compose.yml -f docker-compose.override.yml 
 **Example: Local development of two services**
 ```bash
 # Mix local builds and specific remote versions
-MS_USER_TAG=develop docker compose -f ../ci-tools/docker-compose.yml -f docker-compose.override.yml --profile dev-post up --build
+MS_USER_TAG=develop docker compose -f ../ci-tools/docker-compose.yml -f docker-compose.override.yml --profile local-ms-post up --build
 ```
 
 ## 📊 Observability Stack
+
+### Available UIs
 
 | Service        | URL                                              | Description                                       |
 | -------------- | ------------------------------------------------ | ------------------------------------------------- |
@@ -84,4 +95,22 @@ MS_USER_TAG=develop docker compose -f ../ci-tools/docker-compose.yml -f docker-c
 | **Jaeger UI**  | [http://localhost:16686](http://localhost:16686) | Trace visualization and search                    |
 | **Prometheus** | [http://localhost:9090](http://localhost:9090)   | Metrics exploration & scraping                    |
 
-Start with: `docker compose --profile monitoring up -d`
+### 🏗️ Architecture
+
+```
+Your App ──OTLP──▶ OTel Collector ──OTLP──▶ Jaeger
+    │               (localhost:4317)          (localhost:16686)
+    │
+    └─▶ Databases ◀──Prometheus (Scraping) ◀──Grafana (Dashboard)
+        (PG/Neo4j)      (localhost:9090)        (localhost:3000)
+```
+
+The **OTel Collector** receives traces via OTLP and forwards them to **Jaeger**. **Prometheus** monitors service connectivity via **Blackbox Exporter** (TCP probes) and direct metrics scraping, which are then visualized in **Grafana**.
+
+### 🩺 Health Checks & Status Page
+
+Every service is equipped with automated health checks (`healthcheck`).
+A pre-configured **Grafana Status Page** is available at startup, providing:
+
+- **Real-time Status**: UP/DOWN detection for all databases and core services.
+- **Uptime History**: State timeline bands showing availability over time.

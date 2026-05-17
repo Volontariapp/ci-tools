@@ -6,7 +6,7 @@ x-local-build: &local-build
 services:
   # --- API GATEWAY ---
   api-gateway:
-    profiles: ["dev-gateway", "e2e"]
+    profiles: ["local-api-gateway", "e2e"]
     build:
       <<: *local-build
 
@@ -32,21 +32,21 @@ services:
   # compose from their respective directories.
   
   ms-user:
-    profiles: ["dev-user"]
+    profiles: ["local-ms-user"]
     build:
       <<: *local-build
 
   ms-post:
-    profiles: ["dev-post"]
+    profiles: ["local-ms-post"]
     build:
       <<: *local-build
 
   ms-event:
-    profiles: ["dev-event"]
+    profiles: ["local-ms-event"]
     build:
       <<: *local-build
 
   ms-social:
-    profiles: ["dev-social"]
+    profiles: ["local-ms-social"]
     build:
       <<: *local-build

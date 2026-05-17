@@ -302,6 +302,9 @@ services:
       PORT: "5000"
       <<: *grpc-routing
 
+    volumes:
+      - ./certs:/app/certs:ro
+
     depends_on:
       ms-social: { condition: service_healthy }
       ms-user:   { condition: service_healthy }
@@ -318,6 +321,8 @@ services:
       api-gateway: { condition: service_started }
     networks:
       - volontariapp-network
+    volumes:
+      - ./certs:/app/certs:ro
     environment:
       - NODE_ENV=test
       - E2E_TARGET_URL=http://api-gateway:5000

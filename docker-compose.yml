@@ -90,7 +90,6 @@ services:
       - monitoring
     networks:
       - volontariapp-network
-    command: ['--config=/etc/otelcol/config.yaml']
     volumes:
       - ./monitoring/otel-collector-config.yaml:/etc/otelcol/config.yaml
     ports:

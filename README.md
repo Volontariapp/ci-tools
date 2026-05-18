@@ -95,28 +95,38 @@ MS_USER_TAG=feat-new-auth docker compose up -d
 
 ### 🛠️ Local Development & Overrides
 
-For local development (building from source), use a `docker-compose.override.yml` file. This is the only stable way to swap an image for a local build.
+For local development (building from source), use a `docker-compose.override.yml` file. This is the only stable way to swap a pre-built image for a local build. This file is ignored by Git, so it won't affect other developers.
 
 #### Using Profiles
 
-We use **Docker Compose Profiles** to keep the environment lean:
+We use **Docker Compose Profiles** to keep the environment lean. Here is how to start the stack depending on your needs:
 
-- **(Default)**: Starts only databases and core infrastructure.
-- **`monitoring`**: Starts the full observability stack (Grafana, Prometheus, etc.).
-- **`e2e`**: Starts the API Gateway and its dedicated test runner.
-- **`local-xxx`**: Reserved for local build overrides (e.g., `local-ms-user`, `local-api-gateway`).
-
-**Example: Launch E2E tests locally**
 ```bash
-# In api-gateway folder
-docker compose -f ../ci-tools/docker-compose.yml -f docker-compose.override.yml --profile e2e up --build
+# 1. Start ONLY databases and core infrastructure (Default)
+docker compose up -d
+
+# 2. Start the full observability stack (Grafana, Prometheus, Jaeger)
+docker compose --profile monitoring up -d
+
+# 3. Start everything + the API Gateway and run E2E tests
+docker compose --profile e2e up -d
 ```
 
-**Example: Local development of two services**
+#### How to Build Locally (The Override Pattern)
+
+This repository includes a `docker-compose.override.yml` file configured with specific profiles to build any microservice locally instead of pulling the pre-built GHCR image. 
+
+To build a specific service from source, include the override file and activate its `local-xxx` profile using the `--profile` flag.
+
+**Commands for local builds:**
 ```bash
-# Mix local builds and specific remote versions
-MS_USER_TAG=develop docker compose -f ../ci-tools/docker-compose.yml -f docker-compose.override.yml --profile local-ms-post up --build
+# Example: Build and run ms-user locally
+docker compose -f docker-compose.yml -f docker-compose.override.yml --profile local-ms-user up -d --build
+
+# Example: Run E2E tests against a local build of the api-gateway
+docker compose -f docker-compose.yml -f docker-compose.override.yml --profile local-api-gateway --profile e2e up -d --build
 ```
+*Note: The `--build` flag ensures Docker rebuilds your image with the latest local changes.*
 
 ## 📊 Observability Stack
 

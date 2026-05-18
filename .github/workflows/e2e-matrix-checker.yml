@@ -1,25 +1,19 @@
 name: E2E Matrix Validator
 
 on:
-  pull_request:
-    branches:
-      - main
-    paths:
-      - 'e2e-matrix.json'
-      - 'scripts/validate-matrix-main.sh'
+  workflow_call:
 
 jobs:
   validate-matrix:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout caller code
         uses: actions/checkout@v4
+        with:
+          submodules: true # Required to access ci-tools/scripts
 
       - name: Install jq
         run: sudo apt-get install -y jq
 
-      - name: Make script executable
-        run: chmod +x scripts/validate-matrix-main.sh
-
       - name: Validate e2e-matrix.json
-        run: ./scripts/validate-matrix-main.sh
+        run: ./ci-tools/scripts/validate-matrix-main.sh

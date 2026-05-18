@@ -19,6 +19,7 @@ x-ms-common-env: &ms-common-env
   # Shared Redis configuration
   REDIS_HOST: redis
   REDIS_PORT: 6379
+  GRPC_HOST: "0.0.0.0"
   <<: *grpc-routing
 
 x-redis-deps: &redis-deps
@@ -30,6 +31,8 @@ x-microservice-base: &microservice-base
     <<: *redis-deps
   environment:
     <<: *ms-common-env
+  volumes:
+    - ./certs:/app/certs:ro
 
   healthcheck:
     interval: 10s
@@ -331,10 +334,11 @@ services:
   ms-social: 
     image: ghcr.io/volontariapp/ms-social:${MS_SOCIAL_TAG:-latest}
     container_name: ms-social
+    hostname: ms-social
     <<: *microservice-base
     environment:
-      PORT: "3004"
       <<: [*ms-common-env, *db-social]
+      PORT: "3004"
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3004/health"]
     depends_on:

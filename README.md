@@ -32,6 +32,39 @@ This `ci-tools` repository solves this by extracting the common CI configuration
       node-version: 24.14.0
   ```
 
+## 📜 Scripts (`scripts/`)
+
+### `e2e-matrix-parsing.sh`
+
+This script is used in our CI/CD pipelines (specifically for E2E testing) to dynamically resolve Docker image tags for all microservices based on a branch matrix.
+
+**Purpose**:
+- Resolve branch names to Docker tags (e.g., `main` -> `latest`, `feat/auth` -> `feat-auth`).
+- Generate a `.env` file compatible with our `docker-compose.yml`.
+- Automatically detect the current service's branch in GitHub Actions.
+
+**Usage**:
+```bash
+# Parses e2e-matrix.json and generates .env (No arguments allowed)
+./scripts/e2e-matrix-parsing.sh
+```
+
+**Constraints**:
+- Input file **must** be named `e2e-matrix.json`.
+- Output file is **always** `.env`.
+
+### `validate-matrix-main.sh`
+
+This script ensures that all services defined in `e2e-matrix.json` are pointing to the `main` branch. This is enforced by a CI workflow on all Pull Requests targeting `main`.
+
+**Usage**:
+```bash
+./scripts/validate-matrix-main.sh
+```
+
+**CI Workflow**:
+The workflow `e2e-matrix-checker.yml` runs this script on every PR. If a service is found with a branch other than `main`, the CI will fail, preventing the merge.
+
 ## 🗄️ Infrastructure & Services (`docker-compose.yml`)
 
 This repository provides a unified local development environment. All services share a `volontariapp-network` for seamless communication.

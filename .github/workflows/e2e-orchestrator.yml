@@ -1,0 +1,26 @@
+name: "E2E Orchestrator"
+
+on:
+  workflow_call:
+
+jobs:
+  e2e-tests:
+    name: Run End-to-End Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Generate Certificates
+        run: ./scripts/generate-certs.sh
+
+      - name: Docker Compose Pull
+        run: docker compose --profile e2e pull
+
+      - name: Run E2E Infrastructure & Tests
+        run: |
+          docker compose --profile e2e up --exit-code-from api-gateway-e2e
+
+      - name: Cleanup
+        if: always()
+        run: docker compose --profile e2e down -v

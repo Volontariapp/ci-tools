@@ -4,11 +4,11 @@ on:
   workflow_call:
     inputs:
       changed_packages:
-        description: "JSON array of changed packages"
+        description: 'JSON array of changed packages'
         required: true
         type: string
       snapshot_suffix:
-        description: "Shared suffix for snapshot versions"
+        description: 'Shared suffix for snapshot versions'
         required: false
         type: string
     secrets:
@@ -36,7 +36,7 @@ jobs:
         uses: Volontariapp/ci-tools/.github/actions/setup-node-yarn@main
         with:
           node-version: 24.14.0
-          cache: "yarn"
+          cache: 'yarn'
 
       - name: Install Dependencies
         run: yarn install --immutable
@@ -47,11 +47,11 @@ jobs:
           yarn workspaces foreach -vpt --from "$PKG_NAME" -R run build
 
       - name: Build Test Database
-        if: ${{ matrix.package == 'database' || matrix.package == 'bridge' || matrix.package == 'bridge-nest' || matrix.package == 'health-check' || matrix.package == 'health-check-nest' || matrix.package == 'outbox' || matrix.package == 'workers' }}
+        if: ${{ matrix.package == 'database' || matrix.package == 'bridge' || matrix.package == 'bridge-nest' || matrix.package == 'health-check' || matrix.package == 'health-check-nest' || matrix.package == 'outbox' || matrix.package == 'workers' || matrix.package == 'post-processors' }}
         run: docker compose -f ci-tools/testing/docker-compose.yml --profile test build
 
       - name: Setup Test Database
-        if: ${{ matrix.package == 'database' || matrix.package == 'bridge' || matrix.package == 'bridge-nest' || matrix.package == 'health-check' || matrix.package == 'health-check-nest' || matrix.package == 'outbox' || matrix.package == 'workers' }}
+        if: ${{ matrix.package == 'database' || matrix.package == 'bridge' || matrix.package == 'bridge-nest' || matrix.package == 'health-check' || matrix.package == 'health-check-nest' || matrix.package == 'outbox' || matrix.package == 'workers' || matrix.package == 'post-processors' }}
         run: docker compose -f ci-tools/testing/docker-compose.yml --profile test up -d --wait
 
       - name: Domain Package CI

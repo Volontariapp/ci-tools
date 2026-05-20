@@ -77,6 +77,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
             type=ref,event=branch
             type=ref,event=pr
+            type=raw,value=${{ github.head_ref }},enable=${{ github.event_name == 'pull_request' }}
             type=ref,event=tag
             type=sha
           flavor: |

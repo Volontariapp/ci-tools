@@ -17,6 +17,13 @@ ALLOWED_SERVICES=("api-gateway" "ms-user" "ms-event" "ms-social" "ms-post")
 if [ -n "$CURRENT_SERVICE" ]; then
     echo "Checking $JSON_FILE for non-main branches (excluding $CURRENT_SERVICE)..."
     
+    # Ensure current service is NOT in JSON
+    IS_PRESENT=$(jq -r --arg svc "$CURRENT_SERVICE" '.[$svc] // empty' "$JSON_FILE")
+    if [ -n "$IS_PRESENT" ]; then
+        echo "❌ Validation failed: Current service '$CURRENT_SERVICE' must not be specified in $JSON_FILE."
+        exit 1
+    fi
+
     # Check for missing required services
     MISSING_SERVICES=""
     for SERVICE in "${ALLOWED_SERVICES[@]}"; do

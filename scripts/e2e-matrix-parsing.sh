@@ -36,7 +36,13 @@ for SERVICE in $SERVICES_IN_JSON; do
         fi
     done
     if [ "$IS_ALLOWED" = false ]; then
-        echo "unknown service $SERVICE"
+        echo "Error: unknown service '$SERVICE' in $JSON_FILE"
+        exit 1
+    fi
+
+    # Prevent specifying version for the current service
+    if [ "$SERVICE" == "$CURRENT_SERVICE" ]; then
+        echo "Error: Cannot specify version for current service '$SERVICE' in $JSON_FILE. It is automatically determined by the current branch ($CURRENT_BRANCH)."
         exit 1
     fi
 done

@@ -2,6 +2,10 @@ name: E2E Matrix Validator
 
 on:
   workflow_call:
+    inputs:
+      service-name:
+        required: true
+        type: string
 
 jobs:
   validate-matrix:
@@ -16,4 +20,4 @@ jobs:
         run: sudo apt-get install -y jq
 
       - name: Validate e2e-matrix.json
-        run: ./ci-tools/scripts/validate-matrix-main.sh
+        run: ./ci-tools/scripts/validate-matrix-main.sh "${{ inputs.service-name }}"

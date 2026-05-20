@@ -16,12 +16,21 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Validate Authentication
+        run: |
+          if [ -z "${{ secrets.ORG_REPO_TOKEN }}" ]; then
+            echo "::warning:: ORG_REPO_TOKEN is not provided. Falling back to GITHUB_TOKEN."
+            echo "::notice:: GITHUB_TOKEN usually lacks permissions to pull private images from other repositories in the organization. If 'denied' errors occur, ensure the caller workflow passes 'secrets: inherit' or explicitly provides 'ORG_REPO_TOKEN'."
+          else
+            echo "ORG_REPO_TOKEN is present and will be used for GHCR authentication."
+          fi
+
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.ORG_REPO_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Generate Certificates
         run: ./ci-tools/scripts/generate-certs.sh

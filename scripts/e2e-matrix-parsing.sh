@@ -51,6 +51,22 @@ resolve_tag() {
     fi
 }
 
+# Validate that all required services are present (and current one is absent)
+for SERVICE in "${ALLOWED_SERVICES[@]}"; do
+    BRANCH_IN_JSON=$(jq -r --arg svc "$SERVICE" '.[$svc] // empty' "$JSON_FILE")
+    if [ "$SERVICE" == "$CURRENT_SERVICE" ]; then
+        if [ -n "$BRANCH_IN_JSON" ]; then
+            echo "Error: Cannot specify version for current service '$SERVICE' in $JSON_FILE. It is automatically determined by the current branch ($CURRENT_BRANCH)."
+            exit 1
+        fi
+    else
+        if [ -z "$BRANCH_IN_JSON" ]; then
+            echo "Error: Missing required service '$SERVICE' in $JSON_FILE. All services except the current one must be specified."
+            exit 1
+        fi
+    fi
+done
+
 # Process each allowed service and generate output
 for SERVICE in "${ALLOWED_SERVICES[@]}"; do
     # Try to get branch from JSON
@@ -59,11 +75,6 @@ for SERVICE in "${ALLOWED_SERVICES[@]}"; do
     if [ "$SERVICE" == "$CURRENT_SERVICE" ]; then
         # Use current branch for the service being tested
         BRANCH=$CURRENT_BRANCH
-    fi
-
-    # Fallback to main if branch is still empty (should not happen if validated)
-    if [ -z "$BRANCH" ]; then
-        BRANCH="main"
     fi
 
     TAG=$(resolve_tag "$BRANCH")

@@ -26,6 +26,9 @@ jobs:
       - name: Generate Certificates
         run: ./ci-tools/scripts/generate-certs.sh
 
+      - name: Parse E2E Matrix
+        run: ./ci-tools/scripts/e2e-matrix-parsing.sh
+
       - name: Docker Compose Pull
         run: docker compose -f ci-tools/docker-compose.yml --profile e2e --profile migrations pull
 

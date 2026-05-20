@@ -351,8 +351,11 @@ services:
       - E2E_TARGET_URL=http://api-gateway:5000
 
   # Micro-services
+  # Migration containers run as a dedicated pre-step (--profile migrations --wait)
+  # to avoid triggering --abort-on-container-exit during the e2e run.
   ms-social-migration:
     <<: *migration-base
+    profiles: [migrations]
     image: ghcr.io/volontariapp/ms-social:${MS_SOCIAL_TAG:-latest}
     container_name: ms-social-migration
     environment:
@@ -361,7 +364,7 @@ services:
       postgres-social: { condition: service_healthy }
       neo4j-social: { condition: service_healthy }
 
-  ms-social: 
+  ms-social:
     image: ghcr.io/volontariapp/ms-social:${MS_SOCIAL_TAG:-latest}
     container_name: ms-social
     <<: *microservice-base
@@ -372,16 +375,16 @@ services:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3004/health"]
       interval: 10s
       timeout: 5s
-      retries: 3
-      start_period: 15s
+      retries: 5
+      start_period: 30s
     depends_on:
       <<: *redis-deps
       postgres-social: { condition: service_healthy }
       neo4j-social: { condition: service_healthy }
-      ms-social-migration: { condition: service_completed_successfully }
-  
+
   ms-user-migration:
     <<: *migration-base
+    profiles: [migrations]
     image: ghcr.io/volontariapp/ms-user:${MS_USER_TAG:-latest}
     container_name: ms-user-migration
     environment:
@@ -401,10 +404,10 @@ services:
     depends_on:
       <<: *redis-deps
       postgres-user: { condition: service_healthy }
-      ms-user-migration: { condition: service_completed_successfully }
-  
+
   ms-post-migration:
     <<: *migration-base
+    profiles: [migrations]
     image: ghcr.io/volontariapp/ms-post:${MS_POST_TAG:-latest}
     container_name: ms-post-migration
     environment:
@@ -424,10 +427,10 @@ services:
     depends_on:
       <<: *redis-deps
       postgres-post: { condition: service_healthy }
-      ms-post-migration: { condition: service_completed_successfully }
-  
+
   ms-event-migration:
     <<: *migration-base
+    profiles: [migrations]
     image: ghcr.io/volontariapp/ms-event:${MS_EVENT_TAG:-latest}
     container_name: ms-event-migration
     environment:
@@ -447,7 +450,6 @@ services:
     depends_on:
       <<: *redis-deps
       postgres-event: { condition: service_healthy }
-      ms-event-migration: { condition: service_completed_successfully }
 
 volumes:
   postgres_user_data:

@@ -27,7 +27,11 @@ jobs:
         run: ./ci-tools/scripts/generate-certs.sh
 
       - name: Docker Compose Pull
-        run: docker compose -f ci-tools/docker-compose.yml --profile e2e pull
+        run: docker compose -f ci-tools/docker-compose.yml --profile e2e --profile migrations pull
+
+      - name: Run Migrations
+        run: |
+          docker compose -f ci-tools/docker-compose.yml --profile migrations up --wait
 
       - name: Run E2E Infrastructure & Tests
         run: |
@@ -35,5 +39,5 @@ jobs:
 
       - name: Cleanup
         if: always()
-        run: docker compose -f ci-tools/docker-compose.yml --profile e2e down -v
+        run: docker compose -f ci-tools/docker-compose.yml --profile e2e --profile migrations down -v
 

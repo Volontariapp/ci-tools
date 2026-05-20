@@ -31,7 +31,11 @@ jobs:
 
       - name: Run Migrations
         run: |
-          docker compose -f ci-tools/docker-compose.yml --profile migrations up --wait
+          docker compose -f ci-tools/docker-compose.yml --profile migrations run --rm ms-user-migration &
+          docker compose -f ci-tools/docker-compose.yml --profile migrations run --rm ms-post-migration &
+          docker compose -f ci-tools/docker-compose.yml --profile migrations run --rm ms-event-migration &
+          docker compose -f ci-tools/docker-compose.yml --profile migrations run --rm ms-social-migration &
+          wait
 
       - name: Run E2E Infrastructure & Tests
         run: |

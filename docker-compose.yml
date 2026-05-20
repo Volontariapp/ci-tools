@@ -197,6 +197,7 @@ services:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
       POSTGRES_DB: ms_user
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
     ports:
       - '5432:5432'
     volumes:
@@ -216,6 +217,7 @@ services:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
       POSTGRES_DB: ms_post
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
     ports:
       - '5433:5432'
     volumes:
@@ -255,6 +257,7 @@ services:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
       POSTGRES_DB: ms_social
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
     ports:
       - '5435:5432'
     volumes:
@@ -290,6 +293,8 @@ services:
       redis-server
       --requirepass password
       --user user on >password ~* +@all
+      --save ""
+      --loglevel warning
     ports:
       - '6379:6379'
     networks:

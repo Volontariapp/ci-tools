@@ -16,6 +16,12 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Check for docker-and-e2e label
+        if: github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'docker-and-e2e')
+        run: |
+          echo "::error::The 'docker-and-e2e' label is missing. If you want the PR to be mergeable, add the tag to run the full CI."
+          exit 1
+
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v4
         with:

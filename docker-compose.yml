@@ -308,6 +308,28 @@ services:
       - redis_data:/data
     restart: always
   
+  redis-ws-service:
+    image: redis:7-alpine
+    container_name: redis-ws-service
+    command: >
+      redis-server
+      --requirepass password
+      --user user on >password ~* +@all
+      --save ""
+      --loglevel warning
+    ports:
+      - '6380:6379'
+    networks:
+      - volontariapp-network
+    healthcheck:
+      test: ['CMD', 'redis-cli', '-a', 'password', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - redis_ws_data:/data
+    restart: always
+  
   # API-GATEWAY
   api-gateway:
     image: ghcr.io/volontariapp/api-gateway:${API_GATEWAY_TAG:-latest}
@@ -458,5 +480,6 @@ volumes:
   postgres_social_data:
   neo4j_social_data:
   redis_data:
+  redis_ws_data:
   grafana_data:
   prometheus_data:

@@ -8,6 +8,7 @@ x-grpc-routing: &grpc-routing
   MS_POST_URL: "ms-post:5002"
   MS_SOCIAL_URL: "ms-social:5004"
   MS_USER_URL: "ms-user:5001"
+  MS_WS_URL: "ws-service:5005"
 
 # --- 2. NETWORK & PORT BASIS ---
 x-network-config: &network-config

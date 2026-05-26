@@ -20,14 +20,62 @@ on:
         required: true
 
 jobs:
-  sync-proto-to-npm:
+  check-changes:
+    name: Check Proto Changes
+    runs-on: ubuntu-latest
+    outputs:
+      has_changes: ${{ steps.check.outputs.has_changes }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+      - id: check
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- 'proto/**.proto' 2>/dev/null || true)
+          else
+            CHANGED=$(git diff --name-only HEAD~1 HEAD -- 'proto/**.proto' 2>/dev/null || true)
+          fi
+          if [ -n "$CHANGED" ]; then
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "Proto files changed: $CHANGED"
+          else
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "No proto files changed. Skipping."
+          fi
+
+  lint:
+    name: Lint Proto Files
+    needs: check-changes
+    if: needs.check-changes.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Setup Buf
+        uses: bufbuild/buf-setup-action@v1
+        with:
+          version: '1.40.1'
+      - name: Lint
+        uses: bufbuild/buf-lint-action@v1
+        with:
+          input: 'proto'
+
+  sync:
+    name: Sync to NPM
+    needs: [check-changes, lint]
+    if: |
+      github.event_name != 'pull_request' &&
+      needs.check-changes.outputs.has_changes == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Setup Git Configuration
         uses: Volontariapp/ci-tools/.github/actions/setup-git@main
 
       - name: Checkout NPM Packages
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           repository: ${{ inputs.npm_repository }}
           token: ${{ secrets.ORG_REPO_TOKEN }}
@@ -35,7 +83,7 @@ jobs:
           submodules: recursive
 
       - name: Checkout Proto Registry
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           repository: ${{ inputs.proto_repository }}
           token: ${{ secrets.ORG_REPO_TOKEN }}
@@ -51,17 +99,11 @@ jobs:
         run: |
           npm install -g @bufbuild/buf ts-proto
 
-      - name: Lint Proto files
-        run: buf lint
-        working-directory: proto-registry
-
       - name: Generate TypeScript types
         run: |
           cd proto-registry
-
           rm -rf gen/ts
-
-          CHANGED_PROTOS=$(git diff --name-only HEAD~1 HEAD -- '*.proto' 2>/dev/null || true)
+          CHANGED_PROTOS=$(git diff --name-only HEAD~1 HEAD -- 'proto/**.proto' 2>/dev/null || true)
 
           if [ -z "$CHANGED_PROTOS" ]; then
             echo "No proto files changed or first commit. Generating all."
@@ -81,37 +123,30 @@ jobs:
           NEST_ROOT="../npm-packages/packages/contracts-nest"
 
           PROTO_DEST="$NEST_ROOT/proto"
-          if [ -L "$PROTO_DEST" ]; then
-            rm -f "$PROTO_DEST"
-          fi
+          if [ -L "$PROTO_DEST" ]; then rm -f "$PROTO_DEST"; fi
           rm -rf "$PROTO_DEST"
           mkdir -p "$PROTO_DEST"
           cp -r proto/* "$PROTO_DEST/"
 
-          # Sync Clean Contracts (Front-end compatible)
           for DOMAIN in $DOMAINS; do
             if [ -n "$DOMAIN" ] && [ -d "gen/ts/volontariapp/$DOMAIN" ]; then
               DOMAIN_DEST="$CONTRACTS_ROOT/src/$DOMAIN"
               mkdir -p "$DOMAIN_DEST"
               find "$DOMAIN_DEST" -type f -name "*.ts" ! -name "index.ts" ! -name "*grpc-helpers.ts" ! -name "*date.mapper.ts" -delete
-              # Copy all generated files then remove service files to keep it pure Typescript
               cp gen/ts/volontariapp/$DOMAIN/*.ts "$DOMAIN_DEST/" 2>/dev/null || true
               find "$DOMAIN_DEST" -name "*.services.ts" -delete
             fi
           done
 
-          # Sync NestJS Contracts (Full integration)
           for DOMAIN in $DOMAINS; do
             if [ -n "$DOMAIN" ] && [ -d "gen/ts/volontariapp/$DOMAIN" ]; then
               DOMAIN_DEST="$NEST_ROOT/src/$DOMAIN"
               mkdir -p "$DOMAIN_DEST"
               find "$DOMAIN_DEST" -type f -name "*.ts" ! -name "index.ts" ! -name "*grpc-helpers.ts" ! -name "*date.mapper.ts" -delete
-              # Copy everything including NestJS decorators
               cp gen/ts/volontariapp/$DOMAIN/*.ts "$DOMAIN_DEST/" 2>/dev/null || true
             fi
           done
 
-          # Sync Google Protobuf to both
           if [ -d "gen/ts/google/protobuf" ]; then
             for ROOT in "$CONTRACTS_ROOT" "$NEST_ROOT"; do
               GOOGLE_DEST="$ROOT/src/google/protobuf"
@@ -121,23 +156,15 @@ jobs:
             done
           fi
 
-          # Fix relative imports for flattened structure
           for ROOT in "$CONTRACTS_ROOT" "$NEST_ROOT"; do
             find "$ROOT/src" -type f -name "*.ts" ! -path "*/gateway/*" -exec sed -i 's/\.\.\/\.\.\/google/..\/google/g' {} +
           done
 
-          # Generate/Update barrel files for each domain
           for ROOT in "$CONTRACTS_ROOT" "$NEST_ROOT"; do
             for DIR in $(find "$ROOT/src" -maxdepth 1 -type d ! -path "$ROOT/src"); do
-              # Skip if it's the root src or a non-domain dir or gateway
               DOMAIN_NAME=$(basename "$DIR")
-              if [ "$DOMAIN_NAME" = "gateway" ]; then
-                continue
-              fi
-
+              if [ "$DOMAIN_NAME" = "gateway" ]; then continue; fi
               INDEX_FILE="$DIR/index.ts"
-              
-              # Start fresh barrel file
               echo "// Auto-generated barrel file" > "$INDEX_FILE"
               for TS_FILE in $(find "$DIR" -maxdepth 1 -name "*.ts" ! -name "index.ts"); do
                 BASE=$(basename "$TS_FILE" .ts)

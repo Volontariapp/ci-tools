@@ -13,9 +13,12 @@ This `ci-tools` repository solves this by extracting the common CI configuration
 ### Reusable Workflows (`.github/workflows/`)
 
 - **`validate-compose.yml`**: Automatically validates the syntax and configuration of all Docker Compose files in this repository.
-- **`build-changelog-checker.yml`**: A reusable workflow that builds and tests the `changelog-checker` Go binary, and updates the `npm-packages` `tools/` folder.
-- **`npm-packages-ci.yml`**: A complete, optimized CI sequence for the monorepo `npm-packages`. It isolates tests per library and checks changelogs smartly against modifications.
+- **`maintenance-changelog-checker.yml`**: A reusable workflow that builds and tests the `changelog-checker` Go binary, and updates the `npm-packages` `tools/` folder.
+- **`npm-packages-pipeline.yml`**: A complete, optimized CI sequence for the monorepo `npm-packages`. It isolates tests per library and checks changelogs smartly against modifications.
 - **`sync-all.yml`**: A powerful synchronization workflow. When pushed to `ci-tools`, it clones every single microservice repository and runs an automated script to commit and push the updated CI configuration pointer everywhere.
+- **`service-ci.yml`**: Core CI for microservices.
+- **`proto-sync.yml`**: Synchronizes Protobuf definitions to NPM packages.
+- **`e2e-orchestrator.yml`**: Orchestrates end-to-end tests across services.
 
 ### Composite Actions (`.github/actions/`)
 

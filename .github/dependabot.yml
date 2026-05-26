@@ -1,4 +1,5 @@
 version: 2
+open-requests-limit: 1
 updates:
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -7,7 +8,7 @@ updates:
     commit-message:
       prefix: "ci"
     
-    open-requests-limit: 1
+    
 
     groups:
       github-actions-dependencies:

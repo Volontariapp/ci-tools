@@ -128,25 +128,30 @@ jobs:
           mkdir -p "$PROTO_DEST"
           cp -r proto/* "$PROTO_DEST/"
 
+          # Sync Clean Contracts (Front-end compatible)
           for DOMAIN in $DOMAINS; do
             if [ -n "$DOMAIN" ] && [ -d "gen/ts/volontariapp/$DOMAIN" ]; then
               DOMAIN_DEST="$CONTRACTS_ROOT/src/$DOMAIN"
               mkdir -p "$DOMAIN_DEST"
               find "$DOMAIN_DEST" -type f -name "*.ts" ! -name "index.ts" ! -name "*grpc-helpers.ts" ! -name "*date.mapper.ts" -delete
+              # Copy all generated files then remove service files to keep it pure Typescript
               cp gen/ts/volontariapp/$DOMAIN/*.ts "$DOMAIN_DEST/" 2>/dev/null || true
               find "$DOMAIN_DEST" -name "*.services.ts" -delete
             fi
           done
 
+          # Sync NestJS Contracts (Full integration)
           for DOMAIN in $DOMAINS; do
             if [ -n "$DOMAIN" ] && [ -d "gen/ts/volontariapp/$DOMAIN" ]; then
               DOMAIN_DEST="$NEST_ROOT/src/$DOMAIN"
               mkdir -p "$DOMAIN_DEST"
               find "$DOMAIN_DEST" -type f -name "*.ts" ! -name "index.ts" ! -name "*grpc-helpers.ts" ! -name "*date.mapper.ts" -delete
+              # Copy everything including NestJS decorators
               cp gen/ts/volontariapp/$DOMAIN/*.ts "$DOMAIN_DEST/" 2>/dev/null || true
             fi
           done
 
+          # Sync Google Protobuf to both
           if [ -d "gen/ts/google/protobuf" ]; then
             for ROOT in "$CONTRACTS_ROOT" "$NEST_ROOT"; do
               GOOGLE_DEST="$ROOT/src/google/protobuf"
@@ -156,15 +161,19 @@ jobs:
             done
           fi
 
+          # Fix relative imports for flattened structure
           for ROOT in "$CONTRACTS_ROOT" "$NEST_ROOT"; do
             find "$ROOT/src" -type f -name "*.ts" ! -path "*/gateway/*" -exec sed -i 's/\.\.\/\.\.\/google/..\/google/g' {} +
           done
 
+          # Generate/Update barrel files for each domain
           for ROOT in "$CONTRACTS_ROOT" "$NEST_ROOT"; do
             for DIR in $(find "$ROOT/src" -maxdepth 1 -type d ! -path "$ROOT/src"); do
+              # Skip if it's the root src or a non-domain dir or gateway
               DOMAIN_NAME=$(basename "$DIR")
               if [ "$DOMAIN_NAME" = "gateway" ]; then continue; fi
               INDEX_FILE="$DIR/index.ts"
+              # Start fresh barrel file
               echo "// Auto-generated barrel file" > "$INDEX_FILE"
               for TS_FILE in $(find "$DIR" -maxdepth 1 -name "*.ts" ! -name "index.ts"); do
                 BASE=$(basename "$TS_FILE" .ts)

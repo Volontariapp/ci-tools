@@ -1,5 +1,4 @@
 version: 2
-open-requests-limit: 1
 updates:
   - package-ecosystem: "github-actions"
     directory: "/"

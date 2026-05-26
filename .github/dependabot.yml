@@ -6,3 +6,8 @@ updates:
       interval: "weekly"
     commit-message:
       prefix: "ci"
+    
+    groups:
+      github-actions-dependencies:
+        patterns:
+          - "*" 

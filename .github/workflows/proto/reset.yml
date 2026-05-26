@@ -1,4 +1,4 @@
-name: Sync Proto to NPM Packages
+name: Emergency Reset Proto Sync
 
 on:
   workflow_call:
@@ -20,14 +20,17 @@ on:
         required: true
 
 jobs:
-  sync-proto-to-npm:
+  emergency-reset-sync:
     runs-on: ubuntu-latest
+    if: |
+      github.event.pull_request.labels.*.name && contains(github.event.pull_request.labels.*.name, 'reset') &&
+      startsWith(github.head_ref, 'debug/')
     steps:
       - name: Setup Git Configuration
         uses: Volontariapp/ci-tools/.github/actions/setup-git@main
 
       - name: Checkout NPM Packages
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           repository: ${{ inputs.npm_repository }}
           token: ${{ secrets.ORG_REPO_TOKEN }}
@@ -35,12 +38,11 @@ jobs:
           submodules: recursive
 
       - name: Checkout Proto Registry
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           repository: ${{ inputs.proto_repository }}
           token: ${{ secrets.ORG_REPO_TOKEN }}
           path: proto-registry
-          fetch-depth: 2
 
       - name: Setup Node & Yarn
         uses: Volontariapp/ci-tools/.github/actions/setup-node-yarn@main
@@ -51,35 +53,21 @@ jobs:
         run: |
           npm install -g @bufbuild/buf ts-proto
 
-      - name: Lint Proto files
-        run: buf lint
-        working-directory: proto-registry
-
-      - name: Generate TypeScript types
+      - name: full Regeneration and Sync
         run: |
           cd proto-registry
 
+          # 1. Clean and Full Generate
           rm -rf gen/ts
+          buf generate
 
-          CHANGED_PROTOS=$(git diff --name-only HEAD~1 HEAD -- '*.proto' 2>/dev/null || true)
-
-          if [ -z "$CHANGED_PROTOS" ]; then
-            echo "No proto files changed or first commit. Generating all."
-            buf generate
-            DOMAINS="user post event social common"
-          else
-            echo "Changed protos: $CHANGED_PROTOS"
-            buf generate
-            DOMAINS=$(echo "$CHANGED_PROTOS" | grep -o '^proto/volontariapp/[^/]*' | cut -d'/' -f3 | grep -v "gateway" | sort | uniq | tr '\n' ' ')
-            DOMAINS="$DOMAINS common"
-            echo "Domains to update: $DOMAINS"
-          fi
-
+          # Fix protobufjs imports for ESM
           find gen/ts -name "*.ts" -exec sed -i 's/import { wrappers } from ["'\'']protobufjs["'\'']/import _m0 from "protobufjs"; const { wrappers } = _m0/g' {} +
 
           CONTRACTS_ROOT="../npm-packages/packages/contracts"
           NEST_ROOT="../npm-packages/packages/contracts-nest"
 
+          # 1. Sync Protos to Nest integration package (Breaking symlink if it exists)
           PROTO_DEST="$NEST_ROOT/proto"
           if [ -L "$PROTO_DEST" ]; then
             rm -f "$PROTO_DEST"
@@ -88,30 +76,30 @@ jobs:
           mkdir -p "$PROTO_DEST"
           cp -r proto/* "$PROTO_DEST/"
 
-          # Sync Clean Contracts (Front-end compatible)
+          # 2. Sync Clean Contracts (Front-end compatible)
+          DOMAINS="user post event common"
           for DOMAIN in $DOMAINS; do
-            if [ -n "$DOMAIN" ] && [ -d "gen/ts/volontariapp/$DOMAIN" ]; then
+            if [ -d "gen/ts/volontariapp/$DOMAIN" ]; then
               DOMAIN_DEST="$CONTRACTS_ROOT/src/$DOMAIN"
               mkdir -p "$DOMAIN_DEST"
               find "$DOMAIN_DEST" -type f -name "*.ts" ! -name "index.ts" ! -name "*grpc-helpers.ts" ! -name "*date.mapper.ts" -delete
-              # Copy all generated files then remove service files to keep it pure Typescript
-              cp gen/ts/volontariapp/$DOMAIN/*.ts "$DOMAIN_DEST/" 2>/dev/null || true
+              # Copy then remove services
+              cp gen/ts/volontariapp/$DOMAIN/*.ts "$DOMAIN_DEST/"
               find "$DOMAIN_DEST" -name "*.services.ts" -delete
             fi
           done
 
-          # Sync NestJS Contracts (Full integration)
+          # 3. Sync NestJS Contracts (Full integration)
           for DOMAIN in $DOMAINS; do
-            if [ -n "$DOMAIN" ] && [ -d "gen/ts/volontariapp/$DOMAIN" ]; then
+            if [ -d "gen/ts/volontariapp/$DOMAIN" ]; then
               DOMAIN_DEST="$NEST_ROOT/src/$DOMAIN"
               mkdir -p "$DOMAIN_DEST"
               find "$DOMAIN_DEST" -type f -name "*.ts" ! -name "index.ts" ! -name "*grpc-helpers.ts" ! -name "*date.mapper.ts" -delete
-              # Copy everything including NestJS decorators
-              cp gen/ts/volontariapp/$DOMAIN/*.ts "$DOMAIN_DEST/" 2>/dev/null || true
+              cp gen/ts/volontariapp/$DOMAIN/*.ts "$DOMAIN_DEST/"
             fi
           done
 
-          # Sync Google Protobuf to both
+          # 4. Sync Google Protos to both
           if [ -d "gen/ts/google/protobuf" ]; then
             for ROOT in "$CONTRACTS_ROOT" "$NEST_ROOT"; do
               GOOGLE_DEST="$ROOT/src/google/protobuf"
@@ -129,15 +117,11 @@ jobs:
           # Generate/Update barrel files for each domain
           for ROOT in "$CONTRACTS_ROOT" "$NEST_ROOT"; do
             for DIR in $(find "$ROOT/src" -maxdepth 1 -type d ! -path "$ROOT/src"); do
-              # Skip if it's the root src or a non-domain dir or gateway
               DOMAIN_NAME=$(basename "$DIR")
               if [ "$DOMAIN_NAME" = "gateway" ]; then
                 continue
               fi
-
               INDEX_FILE="$DIR/index.ts"
-              
-              # Start fresh barrel file
               echo "// Auto-generated barrel file" > "$INDEX_FILE"
               for TS_FILE in $(find "$DIR" -maxdepth 1 -name "*.ts" ! -name "index.ts"); do
                 BASE=$(basename "$TS_FILE" .ts)
@@ -146,11 +130,24 @@ jobs:
             done
           done
 
-      - name: Check modifications, bump versions, and create PR
+      - name: Create Emergency Reset PR
+        id: reset-pr
         uses: Volontariapp/ci-tools/.github/actions/create-bump-pr@main
         with:
           github_token: ${{ secrets.ORG_REPO_TOKEN }}
           changed_pkgs: "contracts contracts-nest"
-          commit_message: "chore(proto): auto-update typings for contracts and contracts-nest"
-          pr_title: "chore: sync proto typings"
-          pr_body: "Auto-generated proto typings update for both pure contracts and NestJS integration."
+          commit_message: "fix(proto): emergency full reset of types for contracts and contracts-nest"
+          pr_title: "🚨 EMERGENCY: Full Proto Reset"
+          pr_body: "This PR performs a full regeneration of all proto files and TypeScript types for both pure @volontariapp/contracts and NestJS @volontariapp/contracts-nest packages."
+
+      - name: Comment PR link on original PR
+        if: github.event.pull_request.number != null
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.ORG_REPO_TOKEN }}
+          PR_URL: ${{ steps.reset-pr.outputs.pr_url }}
+        run: |
+          gh pr comment ${{ github.event.pull_request.number }} --repo ${{ inputs.proto_repository }} --body "🚀 **Emergency Reset completed!**
+
+          Typings have been updated for both packages. You can follow the release PR here:
+          $PR_URL"

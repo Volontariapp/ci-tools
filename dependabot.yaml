@@ -1,0 +1,12 @@
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    
+    # Regroupement des dépendances
+    groups:
+      github-actions-dependencies:
+        patterns:
+          - "*" # Regroupe absolument toutes les actions qui ont besoin d'une mise à jour

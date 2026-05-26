@@ -1,0 +1,66 @@
+name: Mobile CI (Expo)
+
+on:
+  workflow_call:
+    secrets:
+      EXPO_TOKEN:
+        required: false
+
+jobs:
+  build:
+    name: Build & Test
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: .
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 'lts/*'
+          cache: 'yarn'
+          cache-dependency-path: yarn.lock
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Lint
+        run: yarn lint
+
+      - name: React Doctor Check
+        run: |
+          SCORE=$(npx react-doctor@latest . --score | grep -Eo '[0-9]+' | tail -n1)
+          echo "React Doctor Score: $SCORE"
+          if [ "$SCORE" -lt 95 ]; then
+            echo "Score ($SCORE) is below 95! Please fix React Doctor warnings."
+            echo "run : npx react-doctor@latest ."
+            exit 1
+          fi
+
+      - name: Type Check
+        run: yarn ts:check
+
+      - name: Expo Setup
+        run: |
+          yarn dlx eas-cli --version
+          yarn expo install --check
+
+      - name: Preview Build (Prebuild Check)
+        run: npx expo prebuild --no-install
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+      - name: EAS Build Dry Run
+        run: |
+          echo "Verifying EAS configuration..."
+          npx expo config --type public
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}

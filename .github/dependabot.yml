@@ -1,10 +1,8 @@
 version: 2
 updates:
   - package-ecosystem: "github-actions"
-    directory: "/" # Scan global (workflows + sous-dossiers d'actions)
+    directory: "/"
     schedule:
       interval: "weekly"
-    groups:
-      github-actions-deps:
-        patterns:
-          - "*"
+    commit-message:
+      prefix: "ci"

@@ -1,0 +1,10 @@
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/" # Scan global (workflows + sous-dossiers d'actions)
+    schedule:
+      interval: "weekly"
+    groups:
+      github-actions-deps:
+        patterns:
+          - "*"

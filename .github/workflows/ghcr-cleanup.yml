@@ -1,0 +1,23 @@
+name: Cleanup GHCR Packages
+
+on:
+  schedule:
+    - cron: '0 3 * * 0' # Every Sunday at 3 AM
+  workflow_dispatch:
+
+jobs:
+  clean-ghcr:
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+    steps:
+      - name: Delete old images (Keep only the latest)
+        uses: snok/container-retention-policy@v3
+        with:
+          account-type: org
+          org-name: Volontariapp
+          image-names: api-gateway, ws-service, nativapp, deploy, ms-event, ms-post, ms-social, ms-user
+          cut-off: 1h
+          keep-at-least: 1
+          token: ${{ secrets.GITHUB_TOKEN }}

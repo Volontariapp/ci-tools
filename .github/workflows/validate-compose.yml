@@ -1,0 +1,27 @@
+name: "Validate Docker Compose"
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  validate:
+    name: Syntax & Config Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Validate Root Compose (Default)
+        run: docker compose config
+
+      - name: Validate Root Compose (Monitoring Profile)
+        run: docker compose --profile monitoring config
+
+      - name: Validate Testing Compose (Default)
+        run: docker compose -f testing/docker-compose.yml config
+
+      - name: Validate Testing Compose (Test Profile)
+        run: docker compose -f testing/docker-compose.yml --profile test config

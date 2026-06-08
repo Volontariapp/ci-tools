@@ -1,21 +1,113 @@
+networks:
+  volontariapp-network:
+    driver: bridge
+
+# --- 1. THE CENTRAL ROUTING TABLE (Shared by MS and Gateway) ---
+x-grpc-routing: &grpc-routing
+  MS_EVENT_URL: "ms-event:5003"
+  MS_POST_URL: "ms-post:5002"
+  MS_SOCIAL_URL: "ms-social:5004"
+  MS_USER_URL: "ms-user:5001"
+  MS_WS_URL: "ws-service:5005"
+
+# --- 2. NETWORK & PORT BASIS ---
+x-network-config: &network-config
+  networks:
+    - volontariapp-network
+
+# --- 3. THE MICROSERVICE COMMON ENGINE ---
+x-ms-common-env: &ms-common-env
+  # Shared Redis configuration
+  REDIS_HOST: redis
+  REDIS_PORT: 6379
+  REDIS_PASSWORD: password
+  GRPC_HOST: "0.0.0.0"
+  <<: *grpc-routing
+
+x-redis-deps: &redis-deps
+  redis: { condition: service_healthy }
+
+x-microservice-base: &microservice-base
+  <<: *network-config
+  depends_on:
+    <<: *redis-deps
+  environment:
+    <<: *ms-common-env
+  volumes:
+    - ./certs:/app/certs:ro
+
+  healthcheck:
+    interval: 10s
+    timeout: 5s
+    retries: 3
+    start_period: 10s
+
+x-migration-base: &migration-base
+  <<: *network-config
+  volumes:
+    - ./certs:/app/certs:ro
+  entrypoint: ["/bin/sh", "-c", "node ./node_modules/typeorm/cli.js migration:run -d ./dist/config/data-source.js"]
+
+# --- 4. DATABASE SPECIFIC ENVS ---
+x-db-common: &db-common
+  DB_PORT: "5432"
+  DB_USERNAME: "user"
+  DB_PASSWORD: "password"
+  DB_MAX_POOL_SIZE: "10"
+  DB_SSL: ""
+  NODE_ENV: test
+
+x-db-user: &db-user
+  <<: *db-common
+  DB_HOST: "postgres-user"
+  DB_NAME: "ms_user"
+
+x-db-post: &db-post
+  <<: *db-common
+  DB_HOST: "postgres-post"
+  DB_NAME: "ms_post"
+
+x-db-event: &db-event
+  <<: *db-common
+  DB_HOST: "postgres-event"
+  DB_NAME: "ms_event"
+
+x-db-social: &db-social
+  <<: *db-common
+  DB_HOST: "postgres-social"
+  DB_NAME: "ms_social"
+  # Neo4j specific
+  NEO4J_SCHEME: "bolt"
+  NEO4J_HOST: "neo4j-social"
+  NEO4J_PORT: "7687"
+  NEO4J_USERNAME: "neo4j"
+  NEO4J_PASSWORD: "password"
+  NEO4J_DATABASE: "neo4j"
+  NEO4J_AUTH_SCHEME: "basic"
+  NEO4J_REALM: "neo4j"
+
+
 services:
   otel-collector:
     image: otel/opentelemetry-collector:latest
-    command: ["--config=/etc/otelcol/config.yaml"]
+    command: ['--config=/etc/otelcol/config.yaml']
+    container_name: otel-collector
     profiles:
       - monitoring
+    networks:
+      - volontariapp-network
     volumes:
       - ./monitoring/otel-collector-config.yaml:/etc/otelcol/config.yaml
     ports:
-      - "1888:1888" # pprof extension
-      - "8888:8888" # Prometheus metrics exposed by the Collector
-      - "8889:8889" # Prometheus exporter metrics
-      - "13133:13133" # health_check extension
-      - "4317:4317" # OTLP gRPC receiver
-      - "4318:4318" # OTLP http receiver
-      - "55679:55679" # zpages extension
+      - '1888:1888' # pprof extension
+      - '8888:8888' # Prometheus metrics exposed by the Collector
+      - '8889:8889' # Prometheus exporter metrics
+      - '13133:13133' # health_check extension
+      - '4317:4317' # OTLP gRPC receiver
+      - '4318:4318' # OTLP http receiver
+      - '55679:55679' # zpages extension
     healthcheck:
-      test: ["CMD", "/otelcol", "status"]
+      test: ['CMD', '/otelcol', 'status']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -24,17 +116,16 @@ services:
 
   jaeger:
     image: jaegertracing/jaeger:latest
+    container_name: jaeger
     profiles:
       - monitoring
+    networks:
+      - volontariapp-network
     ports:
-      - "16686:16686" # UI
-      - "4317" # OTLP gRPC default port
+      - '16686:16686' # UI
+      - '4317' # OTLP gRPC default port
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "wget --quiet --tries=1 --spider http://localhost:14269/health || exit 1",
-        ]
+      test: ['CMD-SHELL', 'wget --quiet --tries=1 --spider http://localhost:14269/health || exit 1']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -44,26 +135,20 @@ services:
     container_name: prometheus
     profiles:
       - monitoring
+    networks:
+      - volontariapp-network
     ports:
-      - "9090:9090"
+      - '9090:9090'
     volumes:
       - ./monitoring/prometheus.yaml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus
     command:
-      - "--config.file=/etc/prometheus/prometheus.yml"
-      - "--storage.tsdb.path=/prometheus"
-      - "--web.console.libraries=/etc/prometheus/console_libraries"
-      - "--web.console.templates=/etc/prometheus/console_templates"
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/console_templates'
     healthcheck:
-      test:
-        [
-          "CMD",
-          "wget",
-          "--quiet",
-          "--tries=1",
-          "--spider",
-          "http://localhost:9090/-/healthy",
-        ]
+      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:9090/-/healthy']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -73,8 +158,10 @@ services:
     container_name: grafana
     profiles:
       - monitoring
+    networks:
+      - volontariapp-network
     ports:
-      - "3000:3000"
+      - '3000:3000'
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
     volumes:
@@ -84,7 +171,7 @@ services:
       prometheus:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
+      test: ['CMD-SHELL', 'curl -f http://localhost:3000/api/health || exit 1']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -94,18 +181,12 @@ services:
     container_name: blackbox-exporter
     profiles:
       - monitoring
+    networks:
+      - volontariapp-network
     ports:
-      - "9115:9115"
+      - '9115:9115'
     healthcheck:
-      test:
-        [
-          "CMD",
-          "wget",
-          "--quiet",
-          "--tries=1",
-          "--spider",
-          "http://localhost:9115/-/healthy",
-        ]
+      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:9115/-/healthy']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -117,16 +198,18 @@ services:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
       POSTGRES_DB: ms_user
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
     ports:
-      - "5432:5432"
+      - '5432:5432'
     volumes:
       - postgres_user_data:/var/lib/postgresql/data
+    networks:
+      - volontariapp-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d ms_user"]
+      test: ['CMD-SHELL', 'pg_isready -U user -d ms_user']
       interval: 10s
       timeout: 5s
       retries: 5
-
 
   postgres-post:
     image: postgres:16-alpine
@@ -135,12 +218,15 @@ services:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
       POSTGRES_DB: ms_post
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
     ports:
-      - "5433:5432"
+      - '5433:5432'
     volumes:
       - postgres_post_data:/var/lib/postgresql/data
+    networks:
+      - volontariapp-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d ms_post"]
+      test: ['CMD-SHELL', 'pg_isready -U user -d ms_post']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -153,19 +239,249 @@ services:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
       POSTGRES_DB: ms_event
+      NODE_ENV: test
     ports:
-      - "5434:5432"
+      - '5434:5432'
     volumes:
       - postgres_event_data:/var/lib/postgresql/data
+    networks:
+      - volontariapp-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d ms_event"]
+      test: ['CMD-SHELL', 'pg_isready -U user -d ms_event']
       interval: 10s
       timeout: 5s
       retries: 5
+
+  postgres-social:
+    image: postgres:16-alpine
+    container_name: postgres-social
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: ms_social
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    ports:
+      - '5435:5432'
+    volumes:
+      - postgres_social_data:/var/lib/postgresql/data
+    networks:
+      - volontariapp-network
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U user -d ms_social']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  neo4j-social:
+    image: neo4j:5.20-community
+    container_name: neo4j-social
+    ports:
+      - '7474:7474'
+      - '7687:7687'
+    environment:
+      NEO4J_AUTH: neo4j/password
+    networks:
+      - volontariapp-network
+    healthcheck:
+      test: ['CMD-SHELL', 'wget --no-verbose --tries=1 --spider http://localhost:7474 || exit 1']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    command: >
+      redis-server
+      --requirepass password
+      --user user on >password ~* +@all
+      --save ""
+      --loglevel warning
+    ports:
+      - '6379:6379'
+    networks:
+      - volontariapp-network
+    healthcheck:
+      test: ['CMD', 'redis-cli', '-a', 'password', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - redis_data:/data
+    restart: always
+  
+  redis-ws-service:
+    image: redis:7-alpine
+    container_name: redis-ws-service
+    command: >
+      redis-server
+      --requirepass password
+      --user user on >password ~* +@all
+      --save ""
+      --loglevel warning
+    ports:
+      - '6380:6379'
+    networks:
+      - volontariapp-network
+    healthcheck:
+      test: ['CMD', 'redis-cli', '-a', 'password', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - redis_ws_data:/data
+    restart: always
+  
+  # API-GATEWAY
+  api-gateway:
+    image: ghcr.io/volontariapp/api-gateway:${API_GATEWAY_TAG:-latest}
+    container_name: api-gateway
+    <<: *network-config
+
+    environment:
+      PORT: "5000"
+      <<: *grpc-routing
+
+    volumes:
+      - ./certs:/app/certs:ro
+
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5000/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+    depends_on:
+      ms-social: { condition: service_healthy }
+      ms-user:   { condition: service_healthy }
+      ms-post:   { condition: service_healthy }
+      ms-event:  { condition: service_healthy }
+
+  # API-GATEWAY-E2E
+  api-gateway-e2e:
+    image: ghcr.io/volontariapp/api-gateway-e2e:${API_GATEWAY_TAG:-latest}
+    container_name: api-gateway-e2e
+    profiles:
+      - e2e
+    depends_on:
+      api-gateway: { condition: service_healthy }
+    networks:
+      - volontariapp-network
+    volumes:
+      - ./certs:/app/certs:ro
+    environment:
+      - NODE_ENV=test
+      - E2E_TARGET_URL=http://api-gateway:5000
+
+  # Micro-services
+  # Migration containers run as a dedicated pre-step (--profile migrations --wait)
+  # to avoid triggering --abort-on-container-exit during the e2e run.
+  ms-social-migration:
+    <<: *migration-base
+    profiles: [migrations]
+    image: ghcr.io/volontariapp/ms-social:${MS_SOCIAL_TAG:-latest}
+    container_name: ms-social-migration
+    environment:
+      <<: [*ms-common-env, *db-social]
+    depends_on:
+      postgres-social: { condition: service_healthy }
+      neo4j-social: { condition: service_healthy }
+
+  ms-social:
+    image: ghcr.io/volontariapp/ms-social:${MS_SOCIAL_TAG:-latest}
+    container_name: ms-social
+    <<: *microservice-base
+    environment:
+      <<: [*ms-common-env, *db-social]
+      PORT: "3004"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3004/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      <<: *redis-deps
+      postgres-social: { condition: service_healthy }
+      neo4j-social: { condition: service_healthy }
+
+  ms-user-migration:
+    <<: *migration-base
+    profiles: [migrations]
+    image: ghcr.io/volontariapp/ms-user:${MS_USER_TAG:-latest}
+    container_name: ms-user-migration
+    environment:
+      <<: [*ms-common-env, *db-user]
+    depends_on:
+      postgres-user: { condition: service_healthy }
+
+  ms-user:
+    image: ghcr.io/volontariapp/ms-user:${MS_USER_TAG:-latest}
+    container_name: ms-user
+    <<: *microservice-base
+    environment:
+      PORT: "3001"
+      <<: [*ms-common-env, *db-user]
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
+    depends_on:
+      <<: *redis-deps
+      postgres-user: { condition: service_healthy }
+
+  ms-post-migration:
+    <<: *migration-base
+    profiles: [migrations]
+    image: ghcr.io/volontariapp/ms-post:${MS_POST_TAG:-latest}
+    container_name: ms-post-migration
+    environment:
+      <<: [*ms-common-env, *db-post]
+    depends_on:
+      postgres-post: { condition: service_healthy }
+
+  ms-post:
+    image: ghcr.io/volontariapp/ms-post:${MS_POST_TAG:-latest}
+    container_name: ms-post
+    <<: *microservice-base
+    environment:
+      PORT: "3002"
+      <<: [*ms-common-env, *db-post]
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3002/health"]
+    depends_on:
+      <<: *redis-deps
+      postgres-post: { condition: service_healthy }
+
+  ms-event-migration:
+    <<: *migration-base
+    profiles: [migrations]
+    image: ghcr.io/volontariapp/ms-event:${MS_EVENT_TAG:-latest}
+    container_name: ms-event-migration
+    environment:
+      <<: [*ms-common-env, *db-event]
+    depends_on:
+      postgres-event: { condition: service_healthy }
+
+  ms-event:
+    image: ghcr.io/volontariapp/ms-event:${MS_EVENT_TAG:-latest}
+    container_name: ms-event
+    <<: *microservice-base
+    environment:
+      PORT: "3003"
+      <<: [*ms-common-env, *db-event]
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3003/health"]
+    depends_on:
+      <<: *redis-deps
+      postgres-event: { condition: service_healthy }
 
 volumes:
   postgres_user_data:
   postgres_post_data:
   postgres_event_data:
+  postgres_social_data:
+  neo4j_social_data:
+  redis_data:
+  redis_ws_data:
   grafana_data:
   prometheus_data:

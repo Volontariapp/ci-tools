@@ -1,0 +1,100 @@
+name: Docker Build & Push on GitHub Container Registry
+
+on: 
+  workflow_call:
+    inputs:
+      service-name:
+        required: true
+        type: string
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps: 
+      - name: Checkout Code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Check for docker-and-e2e label
+        if: github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'docker-and-e2e')
+        run: |
+          echo "::error::The 'docker-and-e2e' label is missing. If you want the PR to be mergeable, add the tag to run the full CI."
+          exit 1
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4
+
+      - name: Check for E2E Dockerfile
+        id: check-e2e
+        shell: bash
+        run: |
+          if [ -f "./Dockerfile.e2e" ]; then
+            echo "has_e2e=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_e2e=false" >> $GITHUB_OUTPUT
+          fi
+
+      # --- Main Service Image ---
+      - name: Extract Main metadata
+        id: meta-main
+        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/${{ inputs.service-name }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=branch
+            type=ref,event=pr
+            type=raw,value=${{ github.head_ref }},enable=${{ github.event_name == 'pull_request' }}
+            type=ref,event=tag
+            type=sha
+          flavor: |
+            latest=false
+
+      - name: Build and Push Main Image
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta-main.outputs.tags }}
+          labels: ${{ steps.meta-main.outputs.labels }}
+
+      # --- E2E Image (Conditional) ---
+      - name: Extract E2E metadata
+        if: ${{ steps.check-e2e.outputs.has_e2e == 'true' }}
+        id: meta-e2e
+        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/${{ inputs.service-name }}-e2e
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=branch
+            type=ref,event=pr
+            type=raw,value=${{ github.head_ref }},enable=${{ github.event_name == 'pull_request' }}
+            type=ref,event=tag
+            type=sha
+          flavor: |
+            latest=false
+
+      - name: Build and Push E2E Image
+        if: ${{ steps.check-e2e.outputs.has_e2e == 'true' }}
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
+        with:
+          context: .
+          file: ./Dockerfile.e2e
+          push: true
+          tags: ${{ steps.meta-e2e.outputs.tags }}
+          labels: ${{ steps.meta-e2e.outputs.labels }}

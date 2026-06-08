@@ -1,0 +1,56 @@
+name: "E2E Orchestrator"
+
+on:
+  workflow_call:
+
+jobs:
+  e2e-tests:
+    name: Run End-to-End Tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          submodules: recursive
+
+      - name: Check for docker-and-e2e label
+        if: github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'docker-and-e2e')
+        run: |
+          echo "::error::The 'docker-and-e2e' label is missing. If you want the PR to be mergeable, add the tag to run the full CI."
+          exit 1
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.DOCKER_PULL_TOKEN }}
+
+      - name: Generate Certificates
+        run: ./ci-tools/scripts/generate-certs.sh
+
+      - name: Parse E2E Matrix
+        run: ./ci-tools/scripts/e2e-matrix-parsing.sh
+
+      - name: Docker Compose Pull
+        run: docker compose -f ci-tools/docker-compose.yml --profile e2e --profile migrations pull
+
+      - name: Run Migrations
+        run: |
+          docker compose -f ci-tools/docker-compose.yml --profile migrations run --rm ms-user-migration &
+          docker compose -f ci-tools/docker-compose.yml --profile migrations run --rm ms-post-migration &
+          docker compose -f ci-tools/docker-compose.yml --profile migrations run --rm ms-event-migration &
+          docker compose -f ci-tools/docker-compose.yml --profile migrations run --rm ms-social-migration &
+          wait
+
+      - name: Run E2E Infrastructure & Tests
+        run: |
+          docker compose -f ci-tools/docker-compose.yml --profile e2e up --exit-code-from api-gateway-e2e
+
+      - name: Cleanup
+        if: always()
+        run: docker compose -f ci-tools/docker-compose.yml --profile e2e --profile migrations down -v
+

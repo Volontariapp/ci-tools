@@ -4,12 +4,18 @@ on:
   workflow_call:
     inputs:
       changed_packages:
-        description: "JSON array of changed packages"
+        description: 'JSON array of changed packages'
         required: true
+        type: string
+      snapshot_suffix:
+        description: 'Shared suffix for snapshot versions'
+        required: false
         type: string
     secrets:
       ORG_REPO_TOKEN:
         required: true
+      NPM_TOKEN:
+        required: false
 
 jobs:
   test-build:
@@ -21,7 +27,7 @@ jobs:
         package: ${{ fromJson(inputs.changed_packages) }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           submodules: recursive
           token: ${{ secrets.ORG_REPO_TOKEN }}
@@ -30,24 +36,79 @@ jobs:
         uses: Volontariapp/ci-tools/.github/actions/setup-node-yarn@main
         with:
           node-version: 24.14.0
-          cache: "yarn"
+          cache: 'yarn'
 
       - name: Install Dependencies
-        run: cd packages/${{ matrix.package }} && yarn workspaces focus
-
+        run: yarn install --immutable
 
       - name: Build Package
         run: |
           PKG_NAME=$(node -p "require('./packages/${{ matrix.package }}/package.json').name")
-          yarn workspaces foreach -Rt --from "$PKG_NAME" run build
+          yarn workspaces foreach -vpt --from "$PKG_NAME" -R run build
 
       - name: Build Test Database
-        if: ${{ matrix.package == 'database' || matrix.package == 'bridge' || matrix.package == 'bridge-nest' || matrix.package == 'health-check' || matrix.package == 'health-check-nest' }}
+        if: ${{ matrix.package == 'database' || matrix.package == 'bridge' || matrix.package == 'bridge-nest' || matrix.package == 'health-check' || matrix.package == 'health-check-nest' || matrix.package == 'outbox' || matrix.package == 'workers' || matrix.package == 'post-processors' }}
         run: docker compose -f ci-tools/testing/docker-compose.yml --profile test build
 
       - name: Setup Test Database
-        if: ${{ matrix.package == 'database' || matrix.package == 'bridge' || matrix.package == 'bridge-nest' || matrix.package == 'health-check' || matrix.package == 'health-check-nest' }}
+        if: ${{ matrix.package == 'database' || matrix.package == 'bridge' || matrix.package == 'bridge-nest' || matrix.package == 'health-check' || matrix.package == 'health-check-nest' || matrix.package == 'outbox' || matrix.package == 'workers' || matrix.package == 'post-processors' }}
         run: docker compose -f ci-tools/testing/docker-compose.yml --profile test up -d --wait
 
+      - name: Domain Package CI
+        if: startsWith(matrix.package, 'domain-')
+        uses: Volontariapp/ci-tools/.github/actions/domain-package-ci@main
+        with:
+          package_name: ${{ matrix.package }}
+          package_path: packages/${{ matrix.package }}
+
       - name: Test Package
-        run: cd packages/${{ matrix.package }} && yarn test
+        if: ${{ !startsWith(matrix.package, 'domain-') }}
+        run: |
+          cd packages/${{ matrix.package }}
+          if grep -q "\"test:coverage\":" package.json; then
+            yarn test:coverage
+          else
+            yarn test
+          fi
+
+      - name: Publish Coverage Summary
+        if: always()
+        run: |
+          COVERAGE_FILE="packages/${{ matrix.package }}/coverage/coverage-summary.json"
+          if [ -f "$COVERAGE_FILE" ]; then
+            echo "### Coverage for ${{ matrix.package }}" >> $GITHUB_STEP_SUMMARY
+            echo "| Type | Percentage |" >> $GITHUB_STEP_SUMMARY
+            echo "|------|------------|" >> $GITHUB_STEP_SUMMARY
+            LINES=$(jq -r '.total.lines.pct' $COVERAGE_FILE)
+            STATEMENTS=$(jq -r '.total.statements.pct' $COVERAGE_FILE)
+            FUNCTIONS=$(jq -r '.total.functions.pct' $COVERAGE_FILE)
+            BRANCHES=$(jq -r '.total.branches.pct' $COVERAGE_FILE)
+            echo "| Lines | ${LINES}% |" >> $GITHUB_STEP_SUMMARY
+            echo "| Statements | ${STATEMENTS}% |" >> $GITHUB_STEP_SUMMARY
+            echo "| Functions | ${FUNCTIONS}% |" >> $GITHUB_STEP_SUMMARY
+            echo "| Branches | ${BRANCHES}% |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "[🔍 View detailed HTML report in Artifacts](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload Coverage Artifact
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage-${{ matrix.package }}
+          path: packages/${{ matrix.package }}/coverage/lcov-report
+          retention-days: 7
+
+      - name: Upload Coverage Summary JSON
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage-summary-${{ matrix.package }}
+          path: packages/${{ matrix.package }}/coverage/coverage-summary.json
+          retention-days: 7
+
+      - name: Cleanup build artifacts
+        if: always()
+        run: |
+          find packages/${{ matrix.package }} -name "*.tsbuildinfo" -delete
+          find packages/${{ matrix.package }} -name "node_modules" -type d -prune -exec rm -rf {} +

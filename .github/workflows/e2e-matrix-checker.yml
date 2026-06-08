@@ -1,0 +1,23 @@
+name: E2E Matrix Validator
+
+on:
+  workflow_call:
+    inputs:
+      service-name:
+        required: true
+        type: string
+
+jobs:
+  validate-matrix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout caller code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          submodules: true # Required to access ci-tools/scripts
+
+      - name: Install jq
+        run: sudo apt-get install -y jq
+
+      - name: Validate e2e-matrix.json
+        run: ./ci-tools/scripts/validate-matrix-main.sh "${{ inputs.service-name }}"

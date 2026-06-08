@@ -1,0 +1,83 @@
+name: "Domain Package CI"
+description: "Builds and tests a domain package with database the migrations"
+inputs:
+  package_path:
+    description: "Path target package"
+    required: true
+  package_name:
+    description: "Name of the package"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Get Domain Name
+      id: domain
+      shell: bash
+      run: |
+        DOMAIN=$(echo "${{ inputs.package_name }}" | sed 's/domain-//')
+        echo "name=$DOMAIN" >> $GITHUB_OUTPUT
+
+    - name: Start Database
+      shell: bash
+      run: |
+        if [ "${{ inputs.package_name }}" = "domain-social" ]; then
+          docker compose -f ci-tools/docker-compose.yml up -d neo4j-social --wait
+        else
+          docker compose -f ci-tools/docker-compose.yml up -d postgres-${{ steps.domain.outputs.name }} --wait
+        fi
+
+    - name: Run Unit Tests with Coverage
+      shell: bash
+      run: |
+        if grep -q "\"test:coverage\":" "${{ inputs.package_path }}/package.json"; then
+          cd ${{ inputs.package_path }} && yarn test:coverage
+        else
+          echo "No unit tests (test:coverage) found in package.json, skipping."
+        fi
+
+    - name: Run Migrations
+      shell: bash
+      run: |
+        if [ -f "${{ inputs.package_path }}/src/test/data-source.ts" ]; then
+          cd ${{ inputs.package_path }} && yarn migration:run
+        else
+          echo "No migration configuration found at src/test/data-source.ts, skipping."
+        fi
+
+    - name: Run Integration Tests with Coverage
+      shell: bash
+      run: |
+        if grep -q "\"test:coverage:integration\":" "${{ inputs.package_path }}/package.json"; then
+          cd ${{ inputs.package_path }} && yarn test:coverage:integration
+        elif grep -q "\"test:integration\":" "${{ inputs.package_path }}/package.json"; then
+          cd ${{ inputs.package_path }} && yarn test:integration
+        else
+          echo "No integration tests found in package.json, skipping."
+        fi
+
+    - name: Merge Coverage Reports
+      shell: bash
+      run: |
+        PKG="${{ inputs.package_path }}"
+        UNIT_COV="$PKG/coverage/unit/coverage-final.json"
+        INT_COV="$PKG/coverage/integration/coverage-final.json"
+
+        if [ ! -f "$UNIT_COV" ] && [ ! -f "$INT_COV" ]; then
+          echo "No coverage reports found, skipping merge."
+          exit 0
+        fi
+
+        mkdir -p "$PKG/coverage/merged"
+        [ -f "$UNIT_COV" ] && cp "$UNIT_COV" "$PKG/coverage/merged/unit.json"
+        [ -f "$INT_COV" ] && cp "$INT_COV" "$PKG/coverage/merged/integration.json"
+
+        cd "$PKG"
+        npx nyc merge coverage/merged coverage/merged/coverage-final.json
+        npx nyc report \
+          --reporter=text \
+          --reporter=lcov \
+          --reporter=json-summary \
+          -t coverage/merged \
+          --report-dir coverage
+        echo "Coverage merged → coverage/"

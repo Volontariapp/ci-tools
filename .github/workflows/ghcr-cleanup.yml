@@ -19,7 +19,7 @@ jobs:
         uses: snok/container-retention-policy@v3.1.0
         with:
           account: Volontariapp
-          image-names: "api-gateway* ws-service* nativapp* deploy* ms-event* ms-post* ms-social* ms-user* post-processor-*"
+          image-names: "api-gateway* ws-service* deploy* ms-event* ms-post* ms-social* ms-user* post-processor-* worker-* outbox-*"
           cut-off: 24h
           keep-n-most-recent: 1
           token: ${{ secrets.GHCR_CLEANUP_TOKEN }}

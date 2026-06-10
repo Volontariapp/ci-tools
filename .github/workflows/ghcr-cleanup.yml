@@ -12,17 +12,11 @@ jobs:
       packages: write
       contents: read
     steps:
-      - name: Debug - List all visible packages
-        run: |
-          curl -s -H "Authorization: Bearer ${{ secrets.GHCR_CLEANUP_TOKEN }}" \
-               -H "Accept: application/vnd.github+json" \
-               "https://api.github.com/orgs/Volontariapp/packages?package_type=container" \
-               | jq -r '.[].name'
-
       # NOTE: GHCR_CLEANUP_TOKEN must be a Classic PAT (ghp_...) with the following scopes:
       # - 'read:packages'
       # - 'delete:packages'
       # - 'repo' (REQUIRED to see packages linked to Private repositories)
+      # - 'read:org' (REQUIRED to list packages at the organization level)
       # The Volontariapp organization policy requires the token to have an expiration < 366 days.
       # If this run fails with a 403 or 'invalid token' error, please renew the token and update the secret.
       - name: Delete old images (Keep only the latest)

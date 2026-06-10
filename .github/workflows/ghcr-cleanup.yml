@@ -12,6 +12,13 @@ jobs:
       packages: write
       contents: read
     steps:
+      - name: Debug - List all visible packages
+        run: |
+          curl -s -H "Authorization: Bearer ${{ secrets.GHCR_CLEANUP_TOKEN }}" \
+               -H "Accept: application/vnd.github+json" \
+               "https://api.github.com/orgs/Volontariapp/packages?package_type=container" \
+               | jq -r '.[].name'
+
       # NOTE: GHCR_CLEANUP_TOKEN must be a Classic PAT (ghp_...) with the following scopes:
       # - 'read:packages'
       # - 'delete:packages'

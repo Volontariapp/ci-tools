@@ -12,15 +12,14 @@ jobs:
       packages: write
       contents: read
     steps:
+      # NOTE: GHCR_CLEANUP_TOKEN must be a Classic PAT (ghp_...) with 'delete:packages' scope.
+      # The Volontariapp organization policy requires the token to have an expiration < 366 days.
+      # If this run fails with a 403 or 'invalid token' error, please renew the token and update the secret.
       - name: Delete old images (Keep only the latest)
         uses: snok/container-retention-policy@v3.1.0
-        env:
-          RUST_BACKTRACE: 1
         with:
           account: Volontariapp
           image-names: api-gateway,ws-service,nativapp,deploy,ms-event,ms-post,ms-social,ms-user
           cut-off: 24h
           keep-n-most-recent: 1
           token: ${{ secrets.GHCR_CLEANUP_TOKEN }}
-          rust-log: debug
-

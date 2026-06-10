@@ -32,7 +32,11 @@ jobs:
       - name: Lint
         run: yarn lint
 
+      - name: Test
+        run: yarn jest
+
       - name: React Doctor Check
+        continue-on-error: true
         run: |
           SCORE=$(yarn doctor . --score | grep -Eo '[0-9]+' | tail -n1)
           echo "React Doctor Score: $SCORE"

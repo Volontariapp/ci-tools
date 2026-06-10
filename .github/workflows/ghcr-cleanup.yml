@@ -13,11 +13,11 @@ jobs:
       contents: read
     steps:
       - name: Delete old images (Keep only the latest)
-        uses: snok/container-retention-policy@v3
+        uses: snok/container-retention-policy@v3.1.0
         with:
           account-type: org
           org-name: Volontariapp
           image-names: api-gateway, ws-service, nativapp, deploy, ms-event, ms-post, ms-social, ms-user
-          cut-off: 1h
+          cut-off: 24h
           keep-at-least: 1
           token: ${{ secrets.GITHUB_TOKEN }}

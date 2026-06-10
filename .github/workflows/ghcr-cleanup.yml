@@ -12,7 +12,10 @@ jobs:
       packages: write
       contents: read
     steps:
-      # NOTE: GHCR_CLEANUP_TOKEN must be a Classic PAT (ghp_...) with 'delete:packages' scope.
+      # NOTE: GHCR_CLEANUP_TOKEN must be a Classic PAT (ghp_...) with the following scopes:
+      # - 'read:packages'
+      # - 'delete:packages'
+      # - 'repo' (REQUIRED to see packages linked to Private repositories)
       # The Volontariapp organization policy requires the token to have an expiration < 366 days.
       # If this run fails with a 403 or 'invalid token' error, please renew the token and update the secret.
       - name: Delete old images (Keep only the latest)

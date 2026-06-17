@@ -12,12 +12,18 @@ jobs:
       packages: write
       contents: read
     steps:
+      # NOTE: GHCR_CLEANUP_TOKEN must be a Classic PAT (ghp_...) with the following scopes:
+      # - 'read:packages'
+      # - 'delete:packages'
+      # - 'repo' (REQUIRED to see packages linked to Private repositories)
+      # - 'read:org' (REQUIRED to list packages at the organization level)
+      # The Volontariapp organization policy requires the token to have an expiration < 366 days.
+      # If this run fails with a 403 or 'invalid token' error, please renew the token and update the secret.
       - name: Delete old images (Keep only the latest)
-        uses: snok/container-retention-policy@v3
+        uses: snok/container-retention-policy@v3.1.0
         with:
-          account-type: org
-          org-name: Volontariapp
-          image-names: api-gateway, ws-service, nativapp, deploy, ms-event, ms-post, ms-social, ms-user
-          cut-off: 1h
-          keep-at-least: 1
-          token: ${{ secrets.GITHUB_TOKEN }}
+          account: Volontariapp
+          image-names: "api-gateway* ws-service* deploy* ms-event* ms-post* ms-social* ms-user* post-processor-* worker-* outbox-*"
+          cut-off: 24h
+          keep-n-most-recent: 1
+          token: ${{ secrets.GHCR_CLEANUP_TOKEN }}

@@ -91,7 +91,7 @@ jobs:
           token: ${{ secrets.ORG_REPO_TOKEN }}
           path: deploy
 
-      - name: Update service submodule in deploy repository
+      - name: Update service submodule, deployment image, and ArgoCD config in deploy repository
         env:
           ORG_REPO_TOKEN: ${{ secrets.ORG_REPO_TOKEN }}
           SERVICE: "${{ github.event.repository.name }}"
@@ -117,9 +117,56 @@ jobs:
           git -C "submodules/$SERVICE" fetch origin "$SERVICE_SHA"
           git -C "submodules/$SERVICE" checkout "$SERVICE_SHA"
 
+          # 1. Update targetRevision in ArgoCD configuration files (dev/prod)
+          export SERVICE_SHA
+          UPDATED_YAML_FILES=()
+          for env_name in dev prod; do
+            YAML_FILE="infrastructure/argocd/apps/${env_name}/${SERVICE}.yaml"
+            if [ -f "$YAML_FILE" ]; then
+              echo "Updating targetRevision in $YAML_FILE..."
+              yq eval '.spec.source.targetRevision = env(SERVICE_SHA)' -i "$YAML_FILE"
+              UPDATED_YAML_FILES+=("$YAML_FILE")
+            fi
+          done
+
+          if [ ${#UPDATED_YAML_FILES[@]} -eq 0 ]; then
+            echo "ArgoCD configuration file not found in infrastructure/argocd/apps/(dev|prod)/${SERVICE}.yaml"
+            exit 1
+          fi
+
+          # 2. Update image in deployment configuration file
+          DEPLOYMENT_FILE="apps/base/${SERVICE}/deployment.yaml"
+          if [ ! -f "$DEPLOYMENT_FILE" ]; then
+            echo "Deployment configuration file '$DEPLOYMENT_FILE' not found."
+            exit 1
+          fi
+
+          SERVICE_SHA_SHORT="${SERVICE_SHA:0:7}"
+          REPO_OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE_NAME="ghcr.io/${REPO_OWNER_LOWER}/${SERVICE}:sha-${SERVICE_SHA_SHORT}"
+          export IMAGE_NAME
+
+          echo "Updating container image in $DEPLOYMENT_FILE..."
+          yq eval '.spec.template.spec.containers[0].image = env(IMAGE_NAME)' -i "$DEPLOYMENT_FILE"
+
+          # 3. Stage changes
           if ! git diff --quiet "submodules/$SERVICE"; then
             git add "submodules/$SERVICE"
-            git commit -m "chore(deploy): update $SERVICE submodule to ${SERVICE_SHA:0:7}"
+          fi
+
+          for yaml in "${UPDATED_YAML_FILES[@]}"; do
+            if ! git diff --quiet "$yaml"; then
+              git add "$yaml"
+            fi
+          done
+
+          if ! git diff --quiet "$DEPLOYMENT_FILE"; then
+            git add "$DEPLOYMENT_FILE"
+          fi
+
+          # 4. Commit and Push if changed
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(deploy): update $SERVICE submodule, deployment image, and ArgoCD config to ${SERVICE_SHA_SHORT}"
 
             for i in {1..5}; do
               git pull --rebase origin main && git push origin main && break || {
@@ -132,5 +179,5 @@ jobs:
               }
             done
           else
-            echo "No deploy submodule change for $SERVICE"
+            echo "No deploy changes (submodule, deployment image, or ArgoCD config) for $SERVICE"
           fi

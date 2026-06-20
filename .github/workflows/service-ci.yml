@@ -84,83 +84,10 @@ jobs:
       - validate-peer-requirements
     if: github.ref == 'refs/heads/main'
     steps:
-      - name: Checkout Deploy Repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Update Deploy Submodule and Images
+        uses: Volontariapp/ci-tools/.github/actions/update-deploy@main
         with:
-          repository: Volontariapp/deploy
-          token: ${{ secrets.ORG_REPO_TOKEN }}
-          path: deploy
-
-      - name: Update service submodule, deployment image, and ArgoCD config in deploy repository
-        env:
-          ORG_REPO_TOKEN: ${{ secrets.ORG_REPO_TOKEN }}
-          SERVICE: "${{ github.event.repository.name }}"
-          SERVICE_SHA: "${{ github.sha }}"
-        run: |
-          if [ -z "$ORG_REPO_TOKEN" ]; then
-            echo "ORG_REPO_TOKEN is empty. Ensure 'secrets: inherit' is used in the caller workflow."
-            exit 1
-          fi
-
-          cd deploy
-
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git config --global url."https://x-access-token:${ORG_REPO_TOKEN}@github.com/".insteadOf "git@github.com:"
-
-          if [ ! -d "submodules/$SERVICE" ]; then
-            echo "No matching submodule path 'submodules/$SERVICE' in deploy repository, skipping."
-            exit 1
-          fi
-
-          git submodule update --init "submodules/$SERVICE"
-          git -C "submodules/$SERVICE" fetch origin "$SERVICE_SHA"
-          git -C "submodules/$SERVICE" checkout "$SERVICE_SHA"
-
-          # 1. Update targetRevision in ArgoCD configuration files (dev/prod)
-          # REMOVED: Target revision must stay at HEAD to not break ArgoCD sync
-
-
-          # 2. Update image in deployment configuration file
-          DEPLOYMENT_FILE="apps/base/${SERVICE}/deployment.yaml"
-          if [ ! -f "$DEPLOYMENT_FILE" ]; then
-            echo "Deployment configuration file '$DEPLOYMENT_FILE' not found."
-            exit 1
-          fi
-
-          SERVICE_SHA_SHORT="${SERVICE_SHA:0:7}"
-          REPO_OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-          IMAGE_NAME="ghcr.io/${REPO_OWNER_LOWER}/${SERVICE}:sha-${SERVICE_SHA_SHORT}"
-          export IMAGE_NAME
-
-          echo "Updating container image in $DEPLOYMENT_FILE..."
-          yq eval '(.. | select(has("image") and (.image | test("ghcr.io/.*/" + env(SERVICE) + ":.*"))) | .image) = env(IMAGE_NAME)' -i "$DEPLOYMENT_FILE"
-
-          # 3. Stage changes
-          if ! git diff --quiet "submodules/$SERVICE"; then
-            git add "submodules/$SERVICE"
-          fi
-
-
-
-          if ! git diff --quiet "$DEPLOYMENT_FILE"; then
-            git add "$DEPLOYMENT_FILE"
-          fi
-
-          # 4. Commit and Push if changed
-          if ! git diff --cached --quiet; then
-            git commit -m "chore(deploy): update $SERVICE submodule, deployment image, and ArgoCD config to ${SERVICE_SHA_SHORT}"
-
-            for i in {1..5}; do
-              git pull --rebase origin main && git push origin main && break || {
-                if [ $i -eq 5 ]; then
-                  echo "Max retries reached. Push to deploy repository failed."
-                  exit 1
-                fi
-                echo "Concurrency detected on deploy repository. Retrying in $((i * 2)) seconds (attempt $i/5)..."
-                sleep $((i * 2))
-              }
-            done
-          else
-            echo "No deploy changes (submodule, deployment image, or ArgoCD config) for $SERVICE"
-          fi
+          service: "${{ github.event.repository.name }}"
+          sha: "${{ github.sha }}"
+          org-repo-token: ${{ secrets.ORG_REPO_TOKEN }}
+          image-match: 'ghcr.io/volontariapp/${{ github.event.repository.name }}'

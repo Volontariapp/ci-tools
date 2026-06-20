@@ -1,0 +1,92 @@
+name: 'Update Deploy Submodule & Images'
+description: 'Updates the submodule and optionally deployment images in the deploy repository'
+
+inputs:
+  service:
+    description: 'Name of the service (e.g., ms-social, workers-runners)'
+    required: true
+  sha:
+    description: 'Commit SHA'
+    required: true
+  org-repo-token:
+    description: 'GitHub token with access to the deploy repository'
+    required: true
+  image-match:
+    description: 'Regex pattern for images to update (e.g., ghcr.io/volontariapp/ms-social, ghcr.io/volontariapp/worker-[^:]+)'
+    required: false
+    default: ''
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout Deploy Repository
+      uses: actions/checkout@v4
+      with:
+        repository: Volontariapp/deploy
+        token: ${{ inputs.org-repo-token }}
+        path: deploy
+
+    - name: Update Deploy Submodule and Images
+      shell: bash
+      env:
+        ORG_REPO_TOKEN: ${{ inputs.org-repo-token }}
+        SERVICE: ${{ inputs.service }}
+        SERVICE_SHA: ${{ inputs.sha }}
+        IMAGE_MATCH: ${{ inputs.image-match }}
+      run: |
+        if [ -z "$ORG_REPO_TOKEN" ]; then
+          echo "ORG_REPO_TOKEN is empty. Ensure it is provided."
+          exit 1
+        fi
+
+        cd deploy
+
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        git config --global url."https://x-access-token:${ORG_REPO_TOKEN}@github.com/".insteadOf "git@github.com:"
+
+        if [ ! -d "submodules/$SERVICE" ]; then
+          echo "No matching submodule path 'submodules/$SERVICE' in deploy repository, skipping."
+          exit 1
+        fi
+
+        git submodule update --init "submodules/$SERVICE"
+        git -C "submodules/$SERVICE" fetch origin "$SERVICE_SHA"
+        git -C "submodules/$SERVICE" checkout "$SERVICE_SHA"
+
+        SERVICE_SHA_SHORT="${SERVICE_SHA:0:7}"
+
+        if [ -n "$IMAGE_MATCH" ]; then
+          echo "Updating images matching '$IMAGE_MATCH' in apps/base to sha-${SERVICE_SHA_SHORT}..."
+          # Find all yaml files in apps/base and replace the tag for the matching image
+          # Uses sed to match 'image: <IMAGE_MATCH>:.*' and replace with 'image: <IMAGE_MATCH>:sha-<SHORT_SHA>'
+          find apps/base -type f -name "*.yaml" -exec sed -i -E "s|(image: ${IMAGE_MATCH}):.*|\1:sha-${SERVICE_SHA_SHORT}|g" {} +
+        fi
+
+        # Stage changes
+        if ! git diff --quiet "submodules/$SERVICE"; then
+          git add "submodules/$SERVICE"
+        fi
+
+        if [ -n "$IMAGE_MATCH" ]; then
+          # Stage any modified files in apps/base
+          git add apps/base/ || true
+        fi
+
+        # Commit and Push if changed
+        if ! git diff --cached --quiet; then
+          git commit -m "chore(deploy): update $SERVICE submodule and deployment images to ${SERVICE_SHA_SHORT}"
+
+          for i in {1..5}; do
+            git pull --rebase origin main && git push origin main && break || {
+              if [ $i -eq 5 ]; then
+                echo "Max retries reached. Push to deploy repository failed."
+                exit 1
+              fi
+              echo "Concurrency detected on deploy repository. Retrying in $((i * 2)) seconds (attempt $i/5)..."
+              sleep $((i * 2))
+            }
+          done
+        else
+          echo "No deploy changes for $SERVICE"
+        fi

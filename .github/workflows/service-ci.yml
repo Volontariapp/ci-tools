@@ -118,21 +118,8 @@ jobs:
           git -C "submodules/$SERVICE" checkout "$SERVICE_SHA"
 
           # 1. Update targetRevision in ArgoCD configuration files (dev/prod)
-          export SERVICE_SHA
-          UPDATED_YAML_FILES=()
-          for env_name in dev prod; do
-            YAML_FILE="infrastructure/argocd/apps/${env_name}/${SERVICE}.yaml"
-            if [ -f "$YAML_FILE" ]; then
-              echo "Updating targetRevision in $YAML_FILE..."
-              yq eval '.spec.source.targetRevision = env(SERVICE_SHA)' -i "$YAML_FILE"
-              UPDATED_YAML_FILES+=("$YAML_FILE")
-            fi
-          done
+          # REMOVED: Target revision must stay at HEAD to not break ArgoCD sync
 
-          if [ ${#UPDATED_YAML_FILES[@]} -eq 0 ]; then
-            echo "ArgoCD configuration file not found in infrastructure/argocd/apps/(dev|prod)/${SERVICE}.yaml"
-            exit 1
-          fi
 
           # 2. Update image in deployment configuration file
           DEPLOYMENT_FILE="apps/base/${SERVICE}/deployment.yaml"
@@ -147,18 +134,14 @@ jobs:
           export IMAGE_NAME
 
           echo "Updating container image in $DEPLOYMENT_FILE..."
-          yq eval '.spec.template.spec.containers[0].image = env(IMAGE_NAME)' -i "$DEPLOYMENT_FILE"
+          yq eval '(.. | select(has("image") and (.image | test("ghcr.io/.*/" + env(SERVICE) + ":.*"))) | .image) = env(IMAGE_NAME)' -i "$DEPLOYMENT_FILE"
 
           # 3. Stage changes
           if ! git diff --quiet "submodules/$SERVICE"; then
             git add "submodules/$SERVICE"
           fi
 
-          for yaml in "${UPDATED_YAML_FILES[@]}"; do
-            if ! git diff --quiet "$yaml"; then
-              git add "$yaml"
-            fi
-          done
+
 
           if ! git diff --quiet "$DEPLOYMENT_FILE"; then
             git add "$DEPLOYMENT_FILE"

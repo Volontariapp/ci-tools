@@ -12,7 +12,7 @@ inputs:
     description: 'GitHub token with access to the deploy repository'
     required: true
   image-match:
-    description: 'Regex pattern for images to update (e.g., ghcr.io/volontariapp/ms-social, ghcr.io/volontariapp/worker-[^:]+)'
+    description: 'Comma-separated list of regex patterns for images to update (e.g., ghcr.io/volontariapp/ms-social, ghcr.io/volontariapp/worker-user)'
     required: false
     default: ''
 
@@ -57,10 +57,11 @@ runs:
         SERVICE_SHA_SHORT="${SERVICE_SHA:0:7}"
 
         if [ -n "$IMAGE_MATCH" ]; then
-          echo "Updating images matching '$IMAGE_MATCH' in apps/base to sha-${SERVICE_SHA_SHORT}..."
-          # Find all yaml files in apps/base and replace the tag for the matching image
-          # Uses sed to match 'image: <IMAGE_MATCH>:.*' and replace with 'image: <IMAGE_MATCH>:sha-<SHORT_SHA>'
-          find apps/base -type f -name "*.yaml" -exec sed -i -E "s|(image: ${IMAGE_MATCH}):.*|\1:sha-${SERVICE_SHA_SHORT}|g" {} +
+          IFS=',' read -ra IMAGES <<< "$IMAGE_MATCH"
+          for IMG in "${IMAGES[@]}"; do
+            echo "Updating images matching '$IMG' in apps/base to sha-${SERVICE_SHA_SHORT}..."
+            find apps/base -type f -name "*.yaml" -exec sed -i -E "s|(image: ${IMG}):.*|\1:sha-${SERVICE_SHA_SHORT}|g" {} +
+          done
         fi
 
         # Stage changes

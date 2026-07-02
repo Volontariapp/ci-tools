@@ -1,162 +1,92 @@
-# CI Tools
+# Volontariapp - CI Tools & Orchestration
 
-This repository acts as the central hub for Volontariapp's Continuous Integration (CI) and Continuous Deployment (CD) workflows.
-It houses all the reusable GitHub Actions, workflows, and global synchronized logic for our microservices and shared libraries.
+Ce dépôt agit comme le **centre névralgique** de l'Intégration et du Déploiement Continus (CI/CD) de Volontariapp.
 
-## 🎯 Purpose
+Dans une architecture distribuée (Microservices, API Gateway, Monorepo NPM partagé, Mobile App), la duplication des pipelines GitHub Actions devient rapidement ingérable. Ce repository résout ce problème en hébergeant une suite d'**Actions Composites**, de **Workflows Réutilisables** et de **Scripts de validation** qui sont appelés dynamiquement par tous les autres dépôts de l'écosystème.
 
-In an umbrella architecture containing several microservices (e.g. `api-gateway`, `ms-user`, `npm-packages`), duplicating GitHub workflow files generates an immense amount of technical debt.
-This `ci-tools` repository solves this by extracting the common CI configuration into a single place. All other repositories within the project merely reference the workflows stored here.
+---
 
-## 📦 What's Inside?
+## Architecture des Pipelines CI/CD
 
-### Reusable Workflows (`.github/workflows/`)
+Le dossier `.github/workflows/` contient l'ensemble des orchestrateurs et pipelines standardisés de Volontariapp. Chaque microservice s'appuie sur ces fichiers pour garantir des règles strictes de build et de déploiement.
 
-- **`validate-compose.yml`**: Automatically validates the syntax and configuration of all Docker Compose files in this repository.
-- **`maintenance-changelog-checker.yml`**: A reusable workflow that builds and tests the `changelog-checker` Go binary, and updates the `npm-packages` `tools/` folder.
-- **`npm-packages-pipeline.yml`**: A complete, optimized CI sequence for the monorepo `npm-packages`. It isolates tests per library and checks changelogs smartly against modifications.
-- **`sync-all.yml`**: A powerful synchronization workflow. When pushed to `ci-tools`, it clones every single microservice repository and runs an automated script to commit and push the updated CI configuration pointer everywhere.
-- **`service-ci.yml`**: Core CI for microservices.
-- **`proto-sync.yml`**: Synchronizes Protobuf definitions to NPM packages.
-- **`e2e-orchestrator.yml`**: Orchestrates end-to-end tests across services.
+### 1. Workflows de Microservices (Services CI)
+Ces workflows garantissent qu'un microservice est fonctionnel, packagé et disponible :
+- **`service-ci.yml`** : Pipeline d'intégration continu standard pour un microservice (Lint, Tests Unitaires, Couverture de code).
+- **`service-docker-smoke.yml`** : Valide qu'un microservice démarre correctement et répond à ses sondes de vitalité (Health Checks) dans un environnement Docker isolé, avant tout déploiement.
+- **`service-docker-build-push.yml`** : Compile l'image Docker finale (optimisée pour la production) et la pousse vers le registre **GitHub Container Registry (GHCR)**.
 
-### Composite Actions (`.github/actions/`)
+### 2. Validation de l'Écosystème (E2E & Matrix)
+L'architecture de tests bout-en-bout (E2E) est capable de tester dynamiquement une branche spécifique d'un microservice contre les branches `main` de tous les autres services.
+- **`e2e-orchestrator.yml`** : Orchestre le démarrage des bases de données et des microservices, puis exécute la suite de tests E2E centralisée.
+- **`e2e-matrix-checker.yml`** : Protège la branche `main` en vérifiant qu'aucune PR ne tente de fusionner une configuration pointant vers des images de test ou de feature (validation de la matrice de déploiement).
 
-- **`setup-node-yarn`**:
-  An optimized, reusable composite action setting up the precise Node.js context required by Volontariapp.
-  It abstracts away the complexity of configuring Corepack and specific `node-version` rules.
+### 3. Usine Logicielle NPM (`npm-packages`)
+Le monorepo des librairies partagées possède un cycle de vie complexe géré via *Changesets* :
+- **`npm-packages-pipeline.yml` / `npm-packages-test-build.yml`** : Isole les tests et les builds pour chaque librairie modifiée.
+- **`npm-packages-orchestrate.yml` / `npm-packages-release.yml`** : Automatise la publication des librairies sur le registre NPM privé, gère le bump sémantique des versions et génère les changelogs automatiquement.
+- **`npm-packages-emergency-release.yml`** : Pipeline spécifique pour les correctifs critiques hors du cycle standard.
 
-  **Usage example**:
+### 4. Synchronisation Globale (GitOps)
+- **`proto-sync.yml` & `proto-reset.yml`** : Maintient la stricte cohérence des contrats gRPC (Protobuf). Lorsqu'un `.proto` est modifié, ce workflow génère les typages TypeScript et les synchronise automatiquement à travers les dépôts (via Pull Requests automatisées).
+- **`sync-all.yml`** : Clone l'intégralité des dépôts de l'organisation pour propager massivement une mise à jour des pointeurs de configuration CI.
 
-  ```yaml
-  - name: Setup Node & Yarn
-    uses: Volontariapp/ci-tools/.github/actions/setup-node-yarn@main
-    with:
-      node-version: 24.14.0
-  ```
+---
 
-## 📜 Scripts (`scripts/`)
+## Actions Composites Réutilisables
+
+Situées dans `.github/actions/`, ces actions encapsulent de la logique de bas niveau pour rendre les workflows principaux plus propres.
+
+### `setup-node-yarn`
+Action composite sur-optimisée qui configure le contexte Node.js et Yarn de manière déterministe. Elle masque la complexité de l'activation de `corepack`, la gestion du cache des dépendances et de la version stricte de Node.
+
+**Exemple d'utilisation dans un autre repo :**
+```yaml
+- name: Setup Node & Yarn
+  uses: Volontariapp/ci-tools/.github/actions/setup-node-yarn@main
+  with:
+    node-version: 24.14.0
+```
+
+---
+
+## Outils & Scripts de Validation (`scripts/`)
 
 ### `e2e-matrix-parsing.sh`
-
-This script is used in our CI/CD pipelines (specifically for E2E testing) to dynamically resolve Docker image tags for all microservices based on a branch matrix.
-
-**Purpose**:
-- Resolve branch names to Docker tags (e.g., `main` -> `latest`, `feat/auth` -> `feat-auth`).
-- Generate a `.env` file compatible with our `docker-compose.yml`.
-- Automatically detect the current service's branch in GitHub Actions.
-
-**Usage**:
-```bash
-# Parses e2e-matrix.json and generates .env (No arguments allowed)
-./scripts/e2e-matrix-parsing.sh
-```
-
-**Constraints**:
-- Input file **must** be named `e2e-matrix.json`.
-- Output file is **always** `.env`.
+Ce script Bash est le cœur du routage dynamique des images Docker. Il lit le fichier `e2e-matrix.json` et convertit les branches Git en Tags Docker pour préparer l'environnement (`main` devient `latest`, `feat/auth` devient `feat-auth`). Il crache un fichier `.env` parfaitement formaté pour `docker-compose`.
 
 ### `validate-matrix-main.sh`
+Il s'agit d'un script de gouvernance. Il parse la matrice des versions et retourne un code d'erreur (Fail CI) si un service est configuré pour dépendre d'une branche autre que `main`. Ce script est systématiquement appelé avant d'autoriser une fusion (Merge) vers la branche principale.
 
-This script ensures that all services defined in `e2e-matrix.json` are pointing to the `main` branch. This is enforced by a CI workflow on all Pull Requests targeting `main`.
+---
 
-**Usage**:
-```bash
-./scripts/validate-matrix-main.sh
-```
+## Infrastructure d'Intégration & Développement (`docker-compose.yml`)
 
-**CI Workflow**:
-The workflow `e2e-matrix-checker.yml` runs this script on every PR. If a service is found with a branch other than `main`, the CI will fail, preventing the merge.
+Ce dépôt fournit également le **Docker Compose** maître utilisé par la CI (et localement par les développeurs) pour orchestrer l'intégralité de la plateforme sur le `volontariapp-network`.
 
-## 🗄️ Infrastructure & Services (`docker-compose.yml`)
+### Stratégie Hybride (GHCR)
+Par défaut, ce fichier de composition ne "build" aucun code source. Il va chercher les images précompilées (tag `latest`) sur le **GHCR**. Cela permet de lever l'intégralité du cluster applicatif en quelques secondes.
 
-This repository provides a unified local development environment. All services share a `volontariapp-network` for seamless communication.
+| Service       | Variable d'Environnement | Tag par défaut |
+| ------------- | ------------------------ | -------------- |
+| `api-gateway` | `API_GATEWAY_TAG`        | `latest`       |
+| `ms-user`     | `MS_USER_TAG`            | `latest`       |
+| `ms-post`     | `MS_POST_TAG`            | `latest`       |
+| `ms-event`    | `MS_EVENT_TAG`           | `latest`       |
+| `ms-social`   | `MS_SOCIAL_TAG`          | `latest`       |
 
-| Service       | Postgres Port | Neo4j (HTTP/Bolt) |
-| ------------- | ------------- | ----------------- |
-| `ms-user`     | `5432`        | -                 |
-| `ms-post`     | `5433`        | -                 |
-| `ms-event`    | `5434`        | -                 |
-| `ms-social`   | `5435`        | `7474` / `7687`   |
-
-### 🌿 Hybrid CI / Development Strategy
-
-By default, all services pull their `latest` image from **GHCR**. This allows you to run the full stack without building everything locally. You can use environment variables to target specific versions or branches.
-
-| Variable             | Description                                | Default  |
-| -------------------- | ------------------------------------------ | -------- |
-| `API_GATEWAY_TAG`    | Tag for `api-gateway` and `api-gateway-e2e`| `latest` |
-| `MS_USER_TAG`        | Tag for `ms-user`                          | `latest` |
-| `MS_POST_TAG`        | Tag for `ms-post`                          | `latest` |
-| `MS_EVENT_TAG`       | Tag for `ms-event`                         | `latest` |
-| `MS_SOCIAL_TAG`      | Tag for `ms-social`                        | `latest` |
-
-**Example: Run with a specific branch image**
-```bash
-MS_USER_TAG=feat-new-auth docker compose up -d
-```
-
-### 🛠️ Local Development & Overrides
-
-For local development (building from source), use a `docker-compose.override.yml` file. This is the only stable way to swap a pre-built image for a local build. This file is ignored by Git, so it won't affect other developers.
-
-#### Using Profiles
-
-We use **Docker Compose Profiles** to keep the environment lean. Here is how to start the stack depending on your needs:
+### Profils Docker & Développement Local
+Pour construire un service spécifique localement (depuis les sources), nous utilisons le fichier `docker-compose.override.yml` combiné aux **Profils Docker**.
 
 ```bash
-# 1. Start ONLY databases and core infrastructure (Default)
+# Lancer uniquement les bases de données (PostgreSQL, Neo4j, Redis)
 docker compose up -d
 
-# 2. Start the full observability stack (Grafana, Prometheus, Jaeger)
-docker compose --profile monitoring up -d
-
-# 3. Start everything + the API Gateway and run E2E tests
+# Lancer l'infrastructure complète pour les tests End-to-End
 docker compose --profile e2e up -d
-```
 
-#### How to Build Locally (The Override Pattern)
-
-This repository includes a `docker-compose.override.yml` file configured with specific profiles to build any microservice locally instead of pulling the pre-built GHCR image. 
-
-To build a specific service from source, include the override file and activate its `local-xxx` profile using the `--profile` flag.
-
-**Commands for local builds:**
-```bash
-# Example: Build and run ms-user locally
+# Remplacer l'image distante de ms-user par un build local à chaud
 docker compose -f docker-compose.yml -f docker-compose.override.yml --profile local-ms-user up -d --build
-
-# Example: Run E2E tests against a local build of the api-gateway
-docker compose -f docker-compose.yml -f docker-compose.override.yml --profile local-api-gateway --profile e2e up -d --build
-```
-*Note: The `--build` flag ensures Docker rebuilds your image with the latest local changes.*
-
-## 📊 Observability Stack
-
-### Available UIs
-
-| Service        | URL                                              | Description                                       |
-| -------------- | ------------------------------------------------ | ------------------------------------------------- |
-| **Grafana**    | [http://localhost:3000](http://localhost:3000)   | Dashboards & Status Page (Admin: `admin`/`admin`) |
-| **Jaeger UI**  | [http://localhost:16686](http://localhost:16686) | Trace visualization and search                    |
-| **Prometheus** | [http://localhost:9090](http://localhost:9090)   | Metrics exploration & scraping                    |
-
-### 🏗️ Architecture
-
-```
-Your App ──OTLP──▶ OTel Collector ──OTLP──▶ Jaeger
-    │               (localhost:4317)          (localhost:16686)
-    │
-    └─▶ Databases ◀──Prometheus (Scraping) ◀──Grafana (Dashboard)
-        (PG/Neo4j)      (localhost:9090)        (localhost:3000)
 ```
 
-The **OTel Collector** receives traces via OTLP and forwards them to **Jaeger**. **Prometheus** monitors service connectivity via **Blackbox Exporter** (TCP probes) and direct metrics scraping, which are then visualized in **Grafana**.
-
-### 🩺 Health Checks & Status Page
-
-Every service is equipped with automated health checks (`healthcheck`).
-A pre-configured **Grafana Status Page** is available at startup, providing:
-
-- **Real-time Status**: UP/DOWN detection for all databases and core services.
-- **Uptime History**: State timeline bands showing availability over time.
+*(Note : le fichier override est ignoré par Git pour ne pas impacter les pipelines distants ni les autres développeurs).*

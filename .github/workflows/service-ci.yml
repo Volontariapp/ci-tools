@@ -75,19 +75,3 @@ jobs:
             echo "No critical peer dependency issues found (ignoring known NestJS/Volontariapp warnings)."
           fi
 
-  repo-deploy-push:
-    name: Deploy Repo Submodule Push (${{ inputs.service-name }})
-    runs-on: ubuntu-latest
-    needs:
-      - check
-      - validate-versions
-      - validate-peer-requirements
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - name: Update Deploy Submodule and Images
-        uses: Volontariapp/ci-tools/.github/actions/update-deploy@main
-        with:
-          service: "${{ github.event.repository.name }}"
-          sha: "${{ github.sha }}"
-          org-repo-token: ${{ secrets.ORG_REPO_TOKEN }}
-          image-match: 'ghcr.io/volontariapp/${{ github.event.repository.name }}'

@@ -20,7 +20,7 @@ jobs:
       # The Volontariapp organization policy requires the token to have an expiration < 366 days.
       # If this run fails with a 403 or 'invalid token' error, please renew the token and update the secret.
       - name: Delete old images (Keep only the latest)
-        uses: snok/container-retention-policy@v3.1.0
+        uses: snok/container-retention-policy@d3bdcf5ce9b05f685154e4a16c39233b245e3d53 # v3.1.0
         with:
           account: Volontariapp
           image-names: "api-gateway* ws-service* deploy* ms-event* ms-post* ms-social* ms-user* post-processor-* worker-* outbox-*"

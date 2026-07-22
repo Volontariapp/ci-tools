@@ -1,63 +1,12 @@
-<!-- gitnexus:start -->
-# 🧠 GitNexus — Code Intelligence
+## CI/CD central du projet
 
-This project is indexed by GitNexus as **ci-tools**. Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+`ci-tools` héberge les Actions composites et workflows réutilisables GitHub Actions appelés par tous les autres repos (`ms-*`, `api-gateway`, `npm-packages`, `nativapp`) — pas de logique métier ici.
 
-> [!IMPORTANT]
-> If any tool warns that the index is stale, run `npx gitnexus analyze` immediately.
+- **Workflows par microservice** : `service-ci.yml` (lint/tests/couverture), `service-docker-smoke.yml` (healthcheck en conteneur isolé), `service-docker-build-push.yml` (build + push GHCR).
+- **E2E multi-repo** : `e2e-orchestrator.yml` démarre l'écosystème complet (DB + tous les MS) pour exécuter la suite E2E ; `e2e-matrix-checker.yml` bloque une PR qui pointerait sur des images de test/feature sur `main`.
+- **`npm-packages`** : pipeline Changesets dédié (`npm-packages-pipeline.yml`, `npm-packages-release.yml`, `npm-packages-emergency-release.yml`).
 
-## 🚀 Quick Actions
-
-| Task | Command / Resource |
-| :--- | :--- |
-| **Visualize Graph** | [https://gitnexus.vercel.app/](https://gitnexus.vercel.app/) (Requires `npx gitnexus serve`) |
-| **Impact Analysis** | `npx gitnexus impact <symbol>` |
-| **Code Search** | `npx gitnexus query "<concept>"` |
-| **Symbol Context** | `npx gitnexus context <symbol>` |
-
-## 🛠️ Mandatory Workflows
-
-### 1. Pre-Edit: Impact Analysis
-**NEVER** modify a public function, class, or method without running impact analysis first.
-*   **Action**: Run `gitnexus_impact({target: "SymbolName", direction: "upstream"})`.
-*   **Rule**: Report the blast radius (direct callers, affected processes) to the user before proceeding.
-
-### 2. Pre-Commit: Verification
-**MUST** verify that your changes only affect the intended symbols.
-*   **Action**: Run `gitnexus_detect_changes()`.
-*   **Rule**: If unexpected files are impacted, investigate before committing.
-
-### 3. Exploring & Refactoring
-*   **Search**: Use `gitnexus_query` to find execution flows instead of grepping.
-*   **Rename**: Use `gitnexus_rename` instead of find-and-replace to maintain graph integrity.
-
-## 📊 Impact Risk Levels
-
-| Level | Depth | Meaning | Required Action |
-| :--- | :---: | :--- | :--- |
-| **CRITICAL** | d=1 | Direct callers/importers will break | Update all dependents |
-| **HIGH** | d=2 | Indirect dependencies likely affected | Extensive testing required |
-| **LOW** | d=3+ | Transitive impacts possible | Verify critical paths |
-
-## 🔄 Keeping the Index Fresh
-
-After major changes or commits, refresh the knowledge graph:
-```bash
-npx gitnexus analyze
-```
-*Add `--embeddings` if you need semantic search capabilities.*
-
-## 📖 Skill Reference
-
-For detailed workflows, refer to the following local instruction files:
-*   [Architecture Exploring](.claude/skills/gitnexus/gitnexus-exploring/SKILL.md)
-*   [Impact Analysis](.claude/skills/gitnexus/gitnexus-impact-analysis/SKILL.md)
-*   [Debugging Flows](.claude/skills/gitnexus/gitnexus-debugging/SKILL.md)
-*   [Safe Refactoring](.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md)
-*   [CLI Guide & Wiki](.claude/skills/gitnexus/gitnexus-cli/SKILL.md)
-
-<!-- gitnexus:end -->
-
+Toute modification d'un workflow ici a un impact multi-repo immédiat — vérifier quels repos consomment le workflow avant de changer sa signature d'input.
 
 ## 🚀 RTK - Rust Token Killer (Optimized)
 All shell commands (`git`, `npm`, `jest`, etc.) are automatically proxied via `rtk` for 80% token savings.

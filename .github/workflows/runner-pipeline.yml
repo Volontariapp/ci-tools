@@ -144,8 +144,9 @@ jobs:
         run: yarn test:integration --runInBand
 
       - name: Validate Package Versions
-        working-directory: ${{ matrix.service }}
         uses: Volontariapp/ci-tools/.github/actions/validate-package-versions@main
+        with:
+          path: ${{ matrix.service }}
 
   docker:
     name: Build & Push Docker Image (${{ matrix.service }})

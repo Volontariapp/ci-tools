@@ -87,6 +87,10 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
+      - name: Validate Package Versions
+        working-directory: ${{ matrix.service }}
+        uses: Volontariapp/ci-tools/.github/actions/validate-package-versions@main
+
       - name: Setup Node & Yarn
         uses: Volontariapp/ci-tools/.github/actions/setup-node-yarn@b8fb4cce7a9d9e0a6fe4d9d8645d0f2296f648af # main
         with:

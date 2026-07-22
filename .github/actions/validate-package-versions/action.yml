@@ -4,19 +4,19 @@ description: "Enforces versioning rules on package.json"
 runs:
   using: "composite"
   steps:
-    - name: "Rule: No temporary (-next.TIMESTAMP) versions"
+    - name: "Rule: No temporary (-next.TIMESTAMP) or snapshot (-snap-) versions"
       shell: bash
       run: |
-        echo "🔍 Checking package.json for temporary versions..."
-        # Example: "@volontariapp/config": "0.1.0-next.20260404161016"
-        PATTERN='-next\.[0-9]+'
-        TEMP_VERSIONS=$(grep -E "\"@volontariapp/[^\"]+\": \"[^\"]*$PATTERN\"" package.json || true)
+        echo "🔍 Checking package.json for temporary & snapshot versions..."
+        # Example: "@volontariapp/config": "0.1.0-next.20260404161016" or "@volontariapp/domain-social": "0.11.0-snap-3b27cf6"
+        PATTERN='-(next\.[0-9]+|snap)'
+        TEMP_VERSIONS=$(grep -E "\"@volontariapp/[^\"]+\": \"[^\"]*$PATTERN[^\"]*\"" package.json || true)
 
         if [ ! -z "$TEMP_VERSIONS" ]; then
-          echo "❌ FAILURE: Temporary versions detected in package.json"
+          echo "❌ FAILURE: Temporary or snapshot versions detected in package.json"
           echo "$TEMP_VERSIONS"
           echo ""
-          echo "Reason: Pre-release versions (-next) are for CI/CD testing only and must not be merged into stable branches."
+          echo "Reason: Pre-release (-next) and snapshot (-snap) versions are for CI/CD testing only and must not be merged into stable branches."
           echo "Fix: Run 'yarn add <package>@latest' to use a stable version."
           exit 1
         fi

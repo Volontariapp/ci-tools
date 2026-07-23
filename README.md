@@ -89,4 +89,3 @@ docker compose --profile e2e up -d
 docker compose -f docker-compose.yml -f docker-compose.override.yml --profile local-ms-user up -d --build
 ```
 
-*(Note : le fichier override est ignoré par Git pour ne pas impacter les pipelines distants ni les autres développeurs).*

@@ -12,6 +12,27 @@ scrape_configs:
           - "prometheus:9090"
           - "blackbox-exporter:9115"
 
+  - job_name: "microservices"
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - "ms-user:3001/health"
+          - "ms-post:3002/health"
+          - "ms-event:3003/health"
+          - "ms-social:3004/health"
+          - "api-gateway:5000/api/v1/health"
+    relabel_configs:
+      - source_labels: [__address__]
+        regex: (.+)
+        replacement: "http://${1}"
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
   - job_name: "databases"
     metrics_path: /probe
     params:

@@ -12,7 +12,7 @@ if [ ! -f "$JSON_FILE" ]; then
 fi
 
 # List of allowed services
-ALLOWED_SERVICES=("api-gateway" "ms-user" "ms-event" "ms-social" "ms-post", "ms-storage")
+ALLOWED_SERVICES=("api-gateway" "ms-user" "ms-event" "ms-social" "ms-post" "ms-storage")
 
 # Detect current repository and branch from GitHub environment
 CURRENT_SERVICE=""

@@ -50,3 +50,8 @@ services:
     profiles: ["local-ms-social"]
     build:
       <<: *local-build
+
+  ms-storage:
+    profiles: ["local-ms-storage"]
+    build:
+      <<: *local-build

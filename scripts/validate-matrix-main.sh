@@ -12,7 +12,7 @@ if [ ! -f "$JSON_FILE" ]; then
 fi
 
 # List of allowed services
-ALLOWED_SERVICES=("api-gateway" "ms-user" "ms-event" "ms-social" "ms-post")
+ALLOWED_SERVICES=("api-gateway" "ms-user" "ms-event" "ms-social" "ms-post" "ms-storage")
 
 if [ -n "$CURRENT_SERVICE" ]; then
     echo "Checking $JSON_FILE for non-main branches (excluding $CURRENT_SERVICE)..."

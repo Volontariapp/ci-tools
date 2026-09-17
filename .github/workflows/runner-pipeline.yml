@@ -29,7 +29,7 @@ jobs:
       active-services: ${{ steps.filter.outputs.active-services }}
     steps:
       - name: Checkout Code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
         with:
           fetch-depth: 0
 
@@ -85,7 +85,7 @@ jobs:
         service: ${{ fromJSON(needs.changes.outputs.active-services) }}
     steps:
       - name: Checkout Code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
 
       - name: Setup Node & Yarn
         uses: Volontariapp/ci-tools/.github/actions/setup-node-yarn@main
@@ -121,7 +121,7 @@ jobs:
 
       - name: Checkout ci-tools
         if: steps.integration-check.outputs.has_integration == 'true'
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
         with:
           repository: Volontariapp/ci-tools
           path: ci-tools
@@ -162,7 +162,7 @@ jobs:
         service: ${{ fromJSON(needs.changes.outputs.active-services) }}
     steps:
       - name: Checkout Code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
         with:
           submodules: recursive
 

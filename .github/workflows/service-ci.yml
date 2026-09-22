@@ -19,6 +19,8 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
 
       - name: Setup Node & Yarn
         uses: Volontariapp/ci-tools/.github/actions/setup-node-yarn@main
@@ -29,11 +31,23 @@ jobs:
       - name: Install Dependencies
         run: yarn install --immutable
 
+      - name: Start Service Dependencies (MinIO)
+        run: |
+          if [ -f "ci-tools/docker-compose.yml" ]; then
+            docker compose -f ci-tools/docker-compose.yml up -d minio minio-init --wait || true
+          fi
+
       - name: Check Build
         run: yarn build
 
       - name: Run Tests
         run: yarn test
+        env:
+          S3_ENDPOINT: http://localhost:9000
+          S3_REGION: us-east-1
+          S3_ACCESS_KEY: minioadmin
+          S3_SECRET_KEY: minioadminpassword
+          S3_PUBLIC_BUCKET: volontariapp-public
 
   validate-versions:
     name: Validate Versions (${{ inputs.service-name }})

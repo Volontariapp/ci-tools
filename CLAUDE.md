@@ -8,6 +8,14 @@
 
 Toute modification d'un workflow ici a un impact multi-repo immédiat — vérifier quels repos consomment le workflow avant de changer sa signature d'input.
 
+## 📊 Local Monitoring (Datadog Agent)
+
+L'environnement local (`docker-compose.yml`) utilise l'Agent Datadog unifié (`datadog-agent`) pour la collecte des traces APM et métriques OTLP :
+- **Service** : `datadog-agent` (`gcr.io/datadoghq/agent:7`) avec récepteur OTLP gRPC sur le port `4317` et APM sur le port `8126`.
+- **Configuration locale** :
+  - `DD_API_KEY` : Renseignée dans le `.env` local (fallback automatique sur `dummy_dev_key` en dev).
+  - `OTEL_EXPORTER_OTLP_ENDPOINT` : Configuré sur `http://datadog-agent:4317` dans `x-ms-common-env`.
+
 ## 🚀 RTK - Rust Token Killer (Optimized)
 All shell commands (`git`, `npm`, `jest`, etc.) are automatically proxied via `rtk` for 80% token savings.
 - **Direct Usage:** `rtk gain` (analytics), `rtk discover` (missed savings).

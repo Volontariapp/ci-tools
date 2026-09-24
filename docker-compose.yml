@@ -23,6 +23,8 @@ x-ms-common-env: &ms-common-env
   REDIS_PORT: 6379
   REDIS_PASSWORD: password
   GRPC_HOST: "0.0.0.0"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://datadog-agent:4317"
+  OTEL_SDK_DISABLED: "false"
   <<: *grpc-routing
 
 x-redis-deps: &redis-deps

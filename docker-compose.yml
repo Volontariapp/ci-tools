@@ -143,66 +143,22 @@ services:
       timeout: 5s
       retries: 5
 
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: prometheus
+  datadog-agent:
+    image: gcr.io/datadoghq/agent:7
+    container_name: datadog-agent
     profiles:
       - monitoring
     networks:
       - volontariapp-network
     ports:
-      - '9090:9090'
-    volumes:
-      - ./monitoring/prometheus.yaml:/etc/prometheus/prometheus.yml
-      - prometheus_data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/etc/prometheus/console_libraries'
-      - '--web.console.templates=/etc/prometheus/console_templates'
-    healthcheck:
-      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:9090/-/healthy']
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  grafana:
-    image: grafana/grafana:latest
-    container_name: grafana
-    profiles:
-      - monitoring
-    networks:
-      - volontariapp-network
-    ports:
-      - '3000:3000'
+      - '4317:4317'
+      - '8126:8126'
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
-    depends_on:
-      prometheus:
-        condition: service_healthy
-    healthcheck:
-      test: ['CMD-SHELL', 'curl -f http://localhost:3000/api/health || exit 1']
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  blackbox-exporter:
-    image: prom/blackbox-exporter:latest
-    container_name: blackbox-exporter
-    profiles:
-      - monitoring
-    networks:
-      - volontariapp-network
-    ports:
-      - '9115:9115'
-    healthcheck:
-      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:9115/-/healthy']
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      - DD_API_KEY=${DD_API_KEY:-dummy_dev_key}
+      - DD_SITE=us5.datadoghq.com
+      - DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT=0.0.0.0:4317
+      - DD_APM_ENABLED=true
+      - DD_APM_NON_LOCAL_TRAFFIC=true
 
   postgres-user:
     image: postgres:16-alpine
@@ -386,7 +342,7 @@ services:
     restart: always
 
   minio:
-    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+    image: cgr.dev/chainguard/minio@sha256:bd014394a80898e68c149f2311fdf8d5a2c2f3bb2c33b9327ae6d02b4b065ae1
     container_name: minio
     command: server /data --console-address ":9001"
     environment:
@@ -407,8 +363,9 @@ services:
 
   minio-init:
     profiles: [migrations]
-    image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
+    image: cgr.dev/chainguard/minio-client@sha256:f0dd93b48af1f8a641edcd3c64661c8dbe05189bd2ef2f8cea216eb18af10bf8
     container_name: minio-init
+
     depends_on:
       minio:
         condition: service_healthy
@@ -599,5 +556,3 @@ volumes:
   redis_data:
   redis_ws_data:
   minio_data:
-  grafana_data:
-  prometheus_data:

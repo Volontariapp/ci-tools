@@ -31,16 +31,37 @@ jobs:
       - name: Install Dependencies
         run: yarn install --immutable
 
-      - name: Start Service Dependencies (MinIO)
+      - name: Start Service Dependencies
         run: |
           if [ -f "ci-tools/docker-compose.yml" ]; then
-            docker compose -f ci-tools/docker-compose.yml up -d minio minio-init --wait || true
+            SERVICE_NAME="${{ inputs.service-name }}"
+            DEPS=""
+            DB_SERVICE="postgres-${SERVICE_NAME#ms-}"
+            if grep -q "^  ${DB_SERVICE}:" ci-tools/docker-compose.yml; then
+              DEPS="$DB_SERVICE"
+            fi
+            if [[ "$SERVICE_NAME" == *"storage"* ]]; then
+              DEPS="$DEPS minio minio-init"
+            fi
+            if [ -n "$DEPS" ]; then
+              echo "Starting dependencies: $DEPS"
+              docker compose -f ci-tools/docker-compose.yml up -d $DEPS --wait || true
+              if [[ "$SERVICE_NAME" == *"storage"* ]]; then
+                docker exec postgres-storage psql -U user -d ms_storage -c 'CREATE DATABASE ms_storage_migration_test;' || true
+              fi
+            fi
           fi
 
       - name: Check Build
         run: yarn build
 
-      - name: Run Tests
+      - name: Run Database Migrations
+        run: |
+          if [ -f "dist/config/data-source.js" ]; then
+            NODE_ENV=local node ./node_modules/typeorm/cli.js migration:run -d ./dist/config/data-source.js || true
+          fi
+
+      - name: Run Unit Tests
         run: yarn test
         env:
           S3_ENDPOINT: http://localhost:9000
@@ -48,6 +69,31 @@ jobs:
           S3_ACCESS_KEY: minioadmin
           S3_SECRET_KEY: minioadminpassword
           S3_PUBLIC_BUCKET: volontariapp-public
+
+      - name: Run Integration Tests
+        run: |
+          if grep -q "\"test:migration\":" package.json; then
+            MS_STORAGE_MIGRATION_TEST_DB_HOST=localhost MS_STORAGE_MIGRATION_TEST_DB_PORT=5437 yarn test:migration
+          fi
+          if grep -q "\"test:integration\":" package.json; then
+            yarn test:integration
+          else
+            echo "No test:integration script found in package.json, skipping."
+          fi
+        env:
+          MS_STORAGE_TEST_DB_HOST: localhost
+          DB_HOST: localhost
+          DB_PORT: "5437"
+          DB_USERNAME: user
+          DB_PASSWORD: password
+          DB_NAME: ms_storage
+          S3_ENDPOINT: http://localhost:9000
+          S3_PUBLIC_ENDPOINT: http://localhost:9000
+          S3_REGION: us-east-1
+          S3_ACCESS_KEY: minioadmin
+          S3_SECRET_KEY: minioadminpassword
+          S3_PUBLIC_BUCKET: volontariapp-public
+          S3_PRIVATE_BUCKET: volontariapp-private
 
   validate-versions:
     name: Validate Versions (${{ inputs.service-name }})

@@ -47,6 +47,14 @@ runs:
 
     - name: Run Integration Tests with Coverage
       shell: bash
+      env:
+        S3_ENDPOINT: http://localhost:9000
+        S3_PUBLIC_ENDPOINT: http://localhost:9000
+        S3_REGION: us-east-1
+        S3_ACCESS_KEY: minioadmin
+        S3_SECRET_KEY: minioadminpassword
+        S3_PUBLIC_BUCKET: volontariapp-public
+        S3_PRIVATE_BUCKET: volontariapp-private
       run: |
         if grep -q "\"test:coverage:integration\":" "${{ inputs.package_path }}/package.json"; then
           cd ${{ inputs.package_path }} && yarn test:coverage:integration

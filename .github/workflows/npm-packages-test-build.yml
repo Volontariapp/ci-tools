@@ -54,6 +54,12 @@ jobs:
         if: ${{ matrix.package == 'database' || matrix.package == 'bridge' || matrix.package == 'bridge-nest' || matrix.package == 'health-check' || matrix.package == 'health-check-nest' || matrix.package == 'outbox' || matrix.package == 'workers' || matrix.package == 'post-processors' }}
         run: docker compose -f ci-tools/testing/docker-compose.yml --profile test up -d --wait
 
+      - name: Start MinIO Storage
+        if: contains(matrix.package, 'storage')
+        run: |
+          docker compose -f ci-tools/docker-compose.yml up -d minio --wait
+          docker compose -f ci-tools/docker-compose.yml --profile migrations run --rm minio-init
+
       - name: Domain Package CI
         if: startsWith(matrix.package, 'domain-')
         uses: Volontariapp/ci-tools/.github/actions/domain-package-ci@main
@@ -70,6 +76,17 @@ jobs:
           else
             yarn test
           fi
+          if grep -q "\"test:integration\":" package.json && [ -f "jest.integration.config.js" ]; then
+            yarn test:integration
+          fi
+        env:
+          S3_ENDPOINT: http://localhost:9000
+          S3_PUBLIC_ENDPOINT: http://localhost:9000
+          S3_REGION: us-east-1
+          S3_ACCESS_KEY: minioadmin
+          S3_SECRET_KEY: minioadminpassword
+          S3_PUBLIC_BUCKET: volontariapp-public
+          S3_PRIVATE_BUCKET: volontariapp-private
 
       - name: Publish Coverage Summary
         if: always()

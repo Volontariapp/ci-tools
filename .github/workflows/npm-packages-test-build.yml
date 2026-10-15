@@ -67,7 +67,7 @@ jobs:
           package_name: ${{ matrix.package }}
           package_path: packages/${{ matrix.package }}
 
-      - name: Test Package
+      - name: Run Unit Tests
         if: ${{ !startsWith(matrix.package, 'domain-') }}
         run: |
           cd packages/${{ matrix.package }}
@@ -76,8 +76,15 @@ jobs:
           else
             yarn test
           fi
-          if grep -q "\"test:integration\":" package.json && [ -f "jest.integration.config.js" ]; then
+
+      - name: Run Integration Tests
+        if: ${{ !startsWith(matrix.package, 'domain-') }}
+        run: |
+          cd packages/${{ matrix.package }}
+          if grep -q "\"test:integration\":" package.json; then
             yarn test:integration
+          else
+            echo "No test:integration script found in packages/${{ matrix.package }}/package.json, skipping."
           fi
         env:
           S3_ENDPOINT: http://localhost:9000

@@ -64,6 +64,26 @@ jobs:
           path: coverage-artifacts
           pattern: coverage-summary-*
 
+      # With a single matching artifact, download-artifact extracts it straight into the target
+      # directory instead of one folder per artifact, and ci-pr-comment.py looks for
+      # coverage-artifacts/coverage-summary-<id>/coverage-summary.json: the table showed dashes.
+      - name: Normalize the coverage artifact layout
+        if: github.event_name == 'pull_request'
+        env:
+          JSON_PLAN: ${{ inputs.json_plan }}
+        run: |
+          if [ -f coverage-artifacts/coverage-summary.json ]; then
+            BUILD_IDS=$(echo "$JSON_PLAN" | jq -r '[.packages[] | select(.action == "BUILD") | .id] | join(" ")')
+            set -- $BUILD_IDS
+            if [ "$#" -eq 1 ]; then
+              mkdir -p "coverage-artifacts/coverage-summary-$1"
+              mv coverage-artifacts/coverage-summary.json "coverage-artifacts/coverage-summary-$1/"
+              echo "Moved the coverage summary of $1 into its own folder."
+            else
+              echo "Single summary file but $# packages built: layout left untouched."
+            fi
+          fi
+
       - name: Post PR comment
         if: github.event_name == 'pull_request'
         env:

@@ -100,6 +100,11 @@ x-db-storage: &db-storage
   DB_HOST: "postgres-storage"
   DB_NAME: "ms_storage"
 
+x-db-ranking: &db-ranking
+  <<: *db-common
+  DB_HOST: "postgres-ranking"
+  DB_NAME: "ms_ranking"
+
 
 services:
   otel-collector:
@@ -284,6 +289,26 @@ services:
       - volontariapp-network
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U user -d ms_storage']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres-ranking:
+    image: postgres:16-alpine
+    container_name: postgres-ranking
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: ms_ranking
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    ports:
+      - '5438:5432'
+    volumes:
+      - postgres_ranking_data:/var/lib/postgresql/data
+    networks:
+      - volontariapp-network
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U user -d ms_ranking']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -559,6 +584,7 @@ volumes:
   postgres_social_data:
   postgres_ws_data:
   postgres_storage_data:
+  postgres_ranking_data:
   neo4j_social_data:
   redis_data:
   redis_ws_data:

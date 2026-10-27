@@ -1,3 +1,4 @@
+# Dependabot PRs carry "docker-and-e2e": the CI expects that label on every PR.
 # Template for a runner repository (workers-runners, post-processors-runner, outbox-runners).
 # `directories` lists every sub-package: Dependabot groups them so a bump lands in ONE pull request.
 # Keep the list in sync with the `services` input of .github/workflows/ci.yml.
@@ -7,30 +8,31 @@ updates:
     directories:
       - "/worker-example"
     open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "docker-and-e2e"
     schedule:
       interval: "daily"
     commit-message:
       prefix: "chore"
       include: "scope"
     groups:
-      volontariapp:
-        patterns:
-          - "@volontariapp/*"
-      npm-security:
-        applies-to: security-updates
+      # One pull request for every version update across all sub-packages (@volontariapp/* included).
+      runner-dependencies:
+        applies-to: version-updates
         patterns:
           - "*"
-      npm-minor-patch:
-        applies-to: version-updates
-        update-types:
-          - "minor"
-          - "patch"
+      npm-security:
+        applies-to: security-updates
         patterns:
           - "*"
 
   - package-ecosystem: "github-actions"
     directory: "/"
     open-pull-requests-limit: 1
+    labels:
+      - "dependencies"
+      - "docker-and-e2e"
     schedule:
       interval: "weekly"
     commit-message:
@@ -44,6 +46,9 @@ updates:
     directories:
       - "/worker-example"
     open-pull-requests-limit: 1
+    labels:
+      - "dependencies"
+      - "docker-and-e2e"
     schedule:
       interval: "weekly"
     commit-message:

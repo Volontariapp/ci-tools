@@ -1,3 +1,4 @@
+# Dependabot PRs carry "docker-and-e2e": the Docker and E2E jobs of the CI refuse PRs without it.
 # Template for a microservice or package repository (single root package.json).
 # Copy to <repo>/.github/dependabot.yml. Drop the "docker" block when the repo has no Dockerfile.
 version: 2
@@ -5,6 +6,9 @@ updates:
   - package-ecosystem: "npm"
     directory: "/"
     open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "docker-and-e2e"
     schedule:
       interval: "daily"
     commit-message:
@@ -30,6 +34,9 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     open-pull-requests-limit: 1
+    labels:
+      - "dependencies"
+      - "docker-and-e2e"
     schedule:
       interval: "weekly"
     commit-message:
@@ -42,6 +49,9 @@ updates:
   - package-ecosystem: "docker"
     directory: "/"
     open-pull-requests-limit: 1
+    labels:
+      - "dependencies"
+      - "docker-and-e2e"
     schedule:
       interval: "weekly"
     commit-message:

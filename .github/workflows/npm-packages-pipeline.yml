@@ -32,6 +32,10 @@ jobs:
     secrets:
       ORG_REPO_TOKEN: ${{ secrets.ORG_REPO_TOKEN }}
 
+  security:
+    name: Security Scan
+    uses: Volontariapp/ci-tools/.github/workflows/security-scan.yml@main
+
   # ── Stage 2: Orchestration ────────────────────────────────────────────────
   orchestrate:
     name: Orchestrate

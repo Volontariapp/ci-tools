@@ -1,0 +1,54 @@
+# Template for a runner repository (workers-runners, post-processors-runner, outbox-runners).
+# `directories` lists every sub-package: Dependabot groups them so a bump lands in ONE pull request.
+# Keep the list in sync with the `services` input of .github/workflows/ci.yml.
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directories:
+      - "/worker-example"
+    open-pull-requests-limit: 5
+    schedule:
+      interval: "daily"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    groups:
+      volontariapp:
+        patterns:
+          - "@volontariapp/*"
+      npm-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+      npm-minor-patch:
+        applies-to: version-updates
+        update-types:
+          - "minor"
+          - "patch"
+        patterns:
+          - "*"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    open-pull-requests-limit: 1
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "ci"
+    groups:
+      github-actions-dependencies:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "docker"
+    directories:
+      - "/worker-example"
+    open-pull-requests-limit: 1
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "chore"
+    groups:
+      docker-dependencies:
+        patterns:
+          - "*"

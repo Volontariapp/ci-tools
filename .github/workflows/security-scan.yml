@@ -1,0 +1,44 @@
+name: "Security Scan"
+
+on:
+  workflow_call:
+    inputs:
+      scan-path:
+        description: "Path to scan (repository root by default, which covers every sub-package of a runner)"
+        required: false
+        default: "."
+        type: string
+      severity:
+        description: "Comma-separated severities reported and enforced"
+        required: false
+        default: "HIGH,CRITICAL"
+        type: string
+      blocking:
+        description: "Fail the job when findings are reported (warning mode when false)"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  trivy:
+    name: Trivy (vulnerabilities, secrets, misconfigurations)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: ${{ inputs.scan-path }}
+          scanners: vuln,secret,misconfig
+          severity: ${{ inputs.severity }}
+          ignore-unfixed: true
+          skip-dirs: node_modules,.yarn,ci-tools
+          format: table
+          hide-progress: true
+          exit-code: ${{ inputs.blocking && '1' || '0' }}

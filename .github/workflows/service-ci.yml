@@ -95,6 +95,10 @@ jobs:
           S3_PUBLIC_BUCKET: volontariapp-public
           S3_PRIVATE_BUCKET: volontariapp-private
 
+  security:
+    name: Security Scan
+    uses: Volontariapp/ci-tools/.github/workflows/security-scan.yml@main
+
   validate-versions:
     name: Validate Versions (${{ inputs.service-name }})
     runs-on: ubuntu-latest

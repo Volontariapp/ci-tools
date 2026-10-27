@@ -7,6 +7,10 @@ on:
         required: false
 
 jobs:
+  security:
+    name: Security Scan
+    uses: Volontariapp/ci-tools/.github/workflows/security-scan.yml@main
+
   build:
     name: Build & Test
     runs-on: ubuntu-latest

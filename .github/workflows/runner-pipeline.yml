@@ -74,6 +74,10 @@ jobs:
           echo "active-services=$ACTIVE_SERVICES_JSON" >> $GITHUB_OUTPUT
           echo "Active services detected: $ACTIVE_SERVICES_JSON"
 
+  security:
+    name: Security Scan
+    uses: Volontariapp/ci-tools/.github/workflows/security-scan.yml@main
+
   check:
     name: Build & Lint (${{ matrix.service }})
     runs-on: ubuntu-latest

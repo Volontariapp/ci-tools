@@ -16,11 +16,23 @@ jobs:
         with:
           submodules: recursive
 
+      # The event payload is frozen when the run starts: Dependabot adds its labels a few seconds after opening the PR.
+      # Read the labels live (ORG_REPO_TOKEN) and fall back to the payload when the secret is unavailable.
       - name: Check for docker-and-e2e label
-        if: github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'docker-and-e2e')
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.ORG_REPO_TOKEN }}
+          PAYLOAD_LABELS: ${{ join(github.event.pull_request.labels.*.name, ' ') }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          echo "::error::The 'docker-and-e2e' label is missing. If you want the PR to be mergeable, add the tag to run the full CI."
-          exit 1
+          labels="$PAYLOAD_LABELS"
+          if [ -n "$GH_TOKEN" ]; then
+            labels="$labels $(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json labels --jq '.labels[].name' | tr '\n' ' ' || true)"
+          fi
+          if ! echo " $labels " | grep -q " docker-and-e2e "; then
+            echo "::error::The 'docker-and-e2e' label is missing. If you want the PR to be mergeable, add the tag to run the full CI."
+            exit 1
+          fi
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4

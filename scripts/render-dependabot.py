@@ -1,0 +1,50 @@
+#!/usr/bin/env python3
+"""Render .github/dependabot.yml for a repository from templates/dependabot.
+
+usage: render-dependabot.py <kind> <output> [runner-directory ...]
+
+kinds:
+  service           npm + github-actions + docker (microservices, api-gateway, ws-service)
+  service-nodocker  npm + github-actions (nativapp)
+  monorepo          npm over "/" and "/packages/*" + github-actions (npm-packages)
+  runner            npm + docker over every sub-package + github-actions
+  actions           github-actions only (proto-registry, deploy, docs)
+"""
+import sys
+from pathlib import Path
+
+TEMPLATES = Path(__file__).resolve().parent.parent / "templates" / "dependabot"
+DOCKER = '  - package-ecosystem: "docker"'
+ACTIONS = '  - package-ecosystem: "github-actions"'
+
+
+def render(kind: str, directories: list[str]) -> str:
+    if kind == "runner":
+        text = (TEMPLATES / "runner.yml").read_text()
+        listing = "\n".join(f'      - "/{d}"' for d in directories)
+        text = text.replace('      - "/worker-example"', listing)
+    else:
+        text = (TEMPLATES / "service.yml").read_text()
+        if kind in ("service-nodocker", "monorepo"):
+            text = text[: text.index(DOCKER)].rstrip() + "\n"
+        if kind == "monorepo":
+            text = text.replace(
+                '    directory: "/"\n    open-pull-requests-limit: 2',
+                '    directories:\n      - "/"\n      - "/packages/*"\n    open-pull-requests-limit: 2',
+                1,
+            )
+        if kind == "actions":
+            text = "version: 2\nupdates:\n" + text[text.index(ACTIONS) : text.index(DOCKER)].rstrip() + "\n"
+    header = (
+        "# Generated from Volontariapp/ci-tools templates/dependabot by sync-dependabot.yml: do not edit here.\n"
+        "# Dependabot PRs carry docker-e2e and docker-and-e2e (the latter is required by the CI).\n"
+    )
+    if kind == "runner":
+        header += "# `directories` lists every sub-package of the repository.\n"
+    return header + text[text.index("version: 2") :]
+
+
+if __name__ == "__main__":
+    if len(sys.argv) < 3 or sys.argv[1] not in ("service", "service-nodocker", "monorepo", "runner", "actions"):
+        sys.exit(__doc__)
+    Path(sys.argv[2]).write_text(render(sys.argv[1], sys.argv[3:]))

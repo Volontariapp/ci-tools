@@ -1,0 +1,84 @@
+name: Sync Dependabot Config
+
+# Renders templates/dependabot for every repository and opens one PR per repository when its
+# .github/dependabot.yml differs. Dependabot has no shared or remote config, so the file must live in each repo.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "templates/dependabot/**"
+      - "scripts/render-dependabot.py"
+  workflow_dispatch:
+    inputs:
+      repos:
+        description: "Space-separated repositories to sync (empty means all)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout ci-tools
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Render and open one PR per repository
+        env:
+          GH_TOKEN: ${{ secrets.ORG_REPO_TOKEN }}
+          REPOS_INPUT: ${{ inputs.repos }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "ORG_REPO_TOKEN is empty or not available in this workflow run."
+            exit 1
+          fi
+
+          # repository:kind (see scripts/render-dependabot.py)
+          ALL="api-gateway:service ms-event:service ms-post:service ms-ranking:service ms-social:service ms-storage:service ms-user:service ws-service:service nativapp:service-nodocker npm-packages:monorepo workers-runners:runner post-processors-runner:runner outbox-runners:runner proto-registry:actions deploy:actions docs:actions"
+          BRANCH="ci/dependabot-sync"
+          TITLE="ci(dependabot): sync config from ci-tools templates"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          for entry in $ALL; do
+            repo=${entry%%:*}
+            kind=${entry##*:}
+            if [ -n "$REPOS_INPUT" ] && ! echo " $REPOS_INPUT " | grep -q " $repo "; then
+              continue
+            fi
+            echo "== $repo ($kind)"
+            rm -rf "work/$repo"
+            git clone --quiet --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/Volontariapp/${repo}.git" "work/$repo"
+
+            dirs=""
+            if [ "$kind" = "runner" ]; then
+              dirs=$(cd "work/$repo" && ls -d */ | tr -d / | while read -r d; do [ -f "$d/package.json" ] && echo "$d"; done | tr '\n' ' ')
+            fi
+            mkdir -p "work/$repo/.github"
+            python3 scripts/render-dependabot.py "$kind" "work/$repo/.github/dependabot.yml" $dirs
+
+            if git -C "work/$repo" diff --quiet -- .github/dependabot.yml && [ -z "$(git -C "work/$repo" status --porcelain .github/dependabot.yml)" ]; then
+              echo "up to date"
+              continue
+            fi
+
+            if gh pr list -R "Volontariapp/$repo" --head "$BRANCH" --state open --json number --jq '.[0].number' | grep -q .; then
+              echo "an open sync PR already exists, branch updated"
+            fi
+            git -C "work/$repo" checkout --quiet -B "$BRANCH"
+            git -C "work/$repo" add .github/dependabot.yml
+            git -C "work/$repo" commit --quiet -m "$TITLE"
+            git -C "work/$repo" push --quiet --force origin "$BRANCH"
+
+            for label in docker-and-e2e docker-e2e; do
+              gh label create "$label" -R "Volontariapp/$repo" --force >/dev/null
+            done
+            if ! gh pr list -R "Volontariapp/$repo" --head "$BRANCH" --state open --json number --jq '.[0].number' | grep -q .; then
+              gh pr create -R "Volontariapp/$repo" --base main --head "$BRANCH" --title "$TITLE" --label docker-and-e2e \
+                --body "Generated from Volontariapp/ci-tools templates/dependabot by the Sync Dependabot Config workflow. Edit the templates in ci-tools, not this file."
+            fi
+          done

@@ -27,14 +27,20 @@ jobs:
           PAYLOAD_LABELS: ${{ join(github.event.pull_request.labels.*.name, ' ') }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          labels="$PAYLOAD_LABELS"
-          if [ -n "$GH_TOKEN" ]; then
-            labels="$labels $(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json labels --jq '.labels[].name' | tr '\n' ' ' || true)"
-          fi
-          if ! echo " $labels " | grep -q " docker-and-e2e "; then
-            echo "::error::The 'docker-and-e2e' label is missing. If you want the PR to be mergeable, add the tag to run the full CI."
-            exit 1
-          fi
+          # Dependabot can add its labels minutes after opening the PR: retry for up to 5 minutes.
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            labels="$PAYLOAD_LABELS"
+            if [ -n "$GH_TOKEN" ]; then
+              labels="$labels $(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json labels --jq '.labels[].name' | tr '\n' ' ' || true)"
+            fi
+            if echo " $labels " | grep -q " docker-and-e2e "; then
+              exit 0
+            fi
+            [ -z "$GH_TOKEN" ] && break
+            sleep 30
+          done
+          echo "::error::The 'docker-and-e2e' label is missing. If you want the PR to be mergeable, add the tag to run the full CI."
+          exit 1
 
       - name: Build and Push Docker Image (with optional E2E)
         uses: Volontariapp/ci-tools/.github/actions/docker-build-push@main

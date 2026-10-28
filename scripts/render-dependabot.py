@@ -23,19 +23,18 @@ ACTIONS = '  - package-ecosystem: "github-actions"'
 EXPO_PINNED = [
     "react",
     "react-dom",
-    "react-native-*",
     "react-test-renderer",
     "@types/react",
     "@react-native/*",
-    "@react-native-community/*",
     "expo",
     "expo-*",
     "@expo/*",
 ]
 
 
-# react-native is pinned exactly by the Expo SDK: even 0.81.6 broke 24 tests under SDK 54 (0.81.5).
-EXPO_EXACT = ["react-native"]
+# Pinned exactly by the Expo SDK: even patches fail the 'expo install --check' step (datetimepicker 8.4.7,
+# keyboard-controller 1.18.6, worklets 0.5.2) and react-native 0.81.6 broke 24 tests under SDK 54 (0.81.5).
+EXPO_EXACT = ["react-native", "react-native-*", "@react-native-community/*", "@react-navigation/native-stack"]
 
 # Proven regressions in nativapp: bottom-tabs 7.21 (render is not a function) and typescript-eslint 8.72
 # (no-unsafe-enum-assignment on enums mapped across packages).

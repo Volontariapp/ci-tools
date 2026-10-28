@@ -21,10 +21,6 @@ ACTIONS = '  - package-ecosystem: "github-actions"'
 # Expo SDK pins the native stack (react, react-native, reanimated, screens, maps, svg...): those packages only move
 # through an SDK upgrade (expo install --fix), so version updates are limited to patches.
 EXPO_PINNED = [
-    "react",
-    "react-dom",
-    "react-test-renderer",
-    "@types/react",
     "@react-native/*",
     "expo",
     "expo-*",
@@ -34,11 +30,22 @@ EXPO_PINNED = [
 
 # Pinned exactly by the Expo SDK: even patches fail the 'expo install --check' step (datetimepicker 8.4.7,
 # keyboard-controller 1.18.6, worklets 0.5.2) and react-native 0.81.6 broke 24 tests under SDK 54 (0.81.5).
-EXPO_EXACT = ["react-native", "react-native-*", "@react-native-community/*", "@react-navigation/native-stack"]
+EXPO_EXACT = [
+    "react",
+    "react-dom",
+    "react-test-renderer",
+    "@types/react",
+    "react-native",
+    "react-native-*",
+    "@react-native-community/*",
+    "@react-navigation/native-stack",
+    "typescript-eslint",
+    "@typescript-eslint/*",
+]
 
 # Proven regressions in nativapp: bottom-tabs 7.21 (render is not a function) and typescript-eslint 8.72
 # (no-unsafe-enum-assignment on enums mapped across packages).
-NATIVAPP_HOLD_MINOR = ["@react-navigation/bottom-tabs", "typescript-eslint", "@typescript-eslint/*"]
+NATIVAPP_HOLD_MINOR = ["@react-navigation/bottom-tabs"]
 
 # jest-expo pins jest and the Babel toolchain of the SDK: majors move with it.
 EXPO_MAJOR_ONLY = ["jest", "jest-expo", "@types/jest", "@testing-library/react-native", "@babel/core"]

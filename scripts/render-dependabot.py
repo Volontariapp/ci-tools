@@ -35,11 +35,18 @@ EXPO_PINNED = [
 ]
 
 
+# jest-expo pins jest and the Babel toolchain of the SDK: majors move with it.
+EXPO_MAJOR_ONLY = ["jest", "jest-expo", "@types/jest", "@testing-library/react-native", "@babel/core"]
+
+
 def expo_ignore() -> str:
     lines = ["      # Pinned by the Expo SDK: bump through an SDK upgrade, not through Dependabot."]
     for name in EXPO_PINNED:
         lines.append(f'      - dependency-name: "{name}"')
         lines.append('        update-types: ["version-update:semver-major", "version-update:semver-minor"]')
+    for name in EXPO_MAJOR_ONLY:
+        lines.append(f'      - dependency-name: "{name}"')
+        lines.append('        update-types: ["version-update:semver-major"]')
     return "\n".join(lines) + "\n"
 
 

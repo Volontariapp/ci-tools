@@ -23,7 +23,6 @@ ACTIONS = '  - package-ecosystem: "github-actions"'
 EXPO_PINNED = [
     "react",
     "react-dom",
-    "react-native",
     "react-native-*",
     "react-test-renderer",
     "@types/react",
@@ -35,6 +34,13 @@ EXPO_PINNED = [
 ]
 
 
+# react-native is pinned exactly by the Expo SDK: even 0.81.6 broke 24 tests under SDK 54 (0.81.5).
+EXPO_EXACT = ["react-native"]
+
+# Proven regressions in nativapp: bottom-tabs 7.21 (render is not a function) and typescript-eslint 8.72
+# (no-unsafe-enum-assignment on enums mapped across packages).
+NATIVAPP_HOLD_MINOR = ["@react-navigation/bottom-tabs", "typescript-eslint", "@typescript-eslint/*"]
+
 # jest-expo pins jest and the Babel toolchain of the SDK: majors move with it.
 EXPO_MAJOR_ONLY = ["jest", "jest-expo", "@types/jest", "@testing-library/react-native", "@babel/core"]
 
@@ -42,6 +48,11 @@ EXPO_MAJOR_ONLY = ["jest", "jest-expo", "@types/jest", "@testing-library/react-n
 def expo_ignore() -> str:
     lines = ["      # Pinned by the Expo SDK: bump through an SDK upgrade, not through Dependabot."]
     for name in EXPO_PINNED:
+        lines.append(f'      - dependency-name: "{name}"')
+        lines.append('        update-types: ["version-update:semver-major", "version-update:semver-minor"]')
+    for name in EXPO_EXACT:
+        lines.append(f'      - dependency-name: "{name}"')
+    for name in NATIVAPP_HOLD_MINOR:
         lines.append(f'      - dependency-name: "{name}"')
         lines.append('        update-types: ["version-update:semver-major", "version-update:semver-minor"]')
     for name in EXPO_MAJOR_ONLY:

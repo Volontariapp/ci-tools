@@ -51,6 +51,28 @@ NATIVAPP_HOLD_MINOR = ["@react-navigation/bottom-tabs"]
 EXPO_MAJOR_ONLY = ["jest", "jest-expo", "@types/jest", "@testing-library/react-native", "@babel/core"]
 
 
+# npm-packages publishes wrappers around these libraries whose 0.x or minor releases changed their API:
+# @opentelemetry/sdk-node 0.300 (metricReader became metricReaders), bullmq 5.81 (BaseWorker call at 4 arguments),
+# sharp 0.35 (failOnError removed from SharpOptions). Migrate them in a dedicated PR with changesets.
+MONOREPO_HOLD = [
+    "@opentelemetry/sdk-node",
+    "@opentelemetry/exporter-*",
+    "@opentelemetry/auto-instrumentations-node",
+    "bullmq",
+    "sharp",
+]
+
+
+def monorepo_ignore(text: str) -> str:
+    major_only = '      - dependency-name: "bullmq"\n        update-types: ["version-update:semver-major"]\n'
+    text = text.replace(major_only, "")
+    lines = ["      # Wrapped by published @volontariapp/* packages: see MONOREPO_HOLD in render-dependabot.py."]
+    for name in MONOREPO_HOLD:
+        lines.append(f'      - dependency-name: "{name}"')
+        lines.append('        update-types: ["version-update:semver-major", "version-update:semver-minor"]')
+    return text.replace("    groups:", "\n".join(lines) + "\n    groups:", 1)
+
+
 def expo_ignore() -> str:
     lines = ["      # Pinned by the Expo SDK: bump through an SDK upgrade, not through Dependabot."]
     for name in EXPO_PINNED:
@@ -79,9 +101,10 @@ def render(kind: str, directories: list[str]) -> str:
         if kind == "service-nodocker":
             text = text.replace("    groups:", expo_ignore().rstrip("\n").join(["", "\n"]) + "    groups:", 1)
         if kind == "monorepo":
+            text = monorepo_ignore(text)
             text = text.replace(
-                '    directory: "/"\n    open-pull-requests-limit: 2',
-                '    directories:\n      - "/"\n      - "/packages/*"\n    open-pull-requests-limit: 2',
+                '    directory: "/"\n    open-pull-requests-limit: 3',
+                '    directories:\n      - "/"\n      - "/packages/*"\n    open-pull-requests-limit: 3',
                 1,
             )
         if kind == "actions":

@@ -18,6 +18,31 @@ DOCKER = '  - package-ecosystem: "docker"'
 ACTIONS = '  - package-ecosystem: "github-actions"'
 
 
+# Expo SDK pins the native stack (react, react-native, reanimated, screens, maps, svg...): those packages only move
+# through an SDK upgrade (expo install --fix), so version updates are limited to patches.
+EXPO_PINNED = [
+    "react",
+    "react-dom",
+    "react-native",
+    "react-native-*",
+    "react-test-renderer",
+    "@types/react",
+    "@react-native/*",
+    "@react-native-community/*",
+    "expo",
+    "expo-*",
+    "@expo/*",
+]
+
+
+def expo_ignore() -> str:
+    lines = ["      # Pinned by the Expo SDK: bump through an SDK upgrade, not through Dependabot."]
+    for name in EXPO_PINNED:
+        lines.append(f'      - dependency-name: "{name}"')
+        lines.append('        update-types: ["version-update:semver-major", "version-update:semver-minor"]')
+    return "\n".join(lines) + "\n"
+
+
 def render(kind: str, directories: list[str]) -> str:
     if kind == "runner":
         text = (TEMPLATES / "runner.yml").read_text()
@@ -27,6 +52,8 @@ def render(kind: str, directories: list[str]) -> str:
         text = (TEMPLATES / "service.yml").read_text()
         if kind in ("service-nodocker", "monorepo"):
             text = text[: text.index(DOCKER)].rstrip() + "\n"
+        if kind == "service-nodocker":
+            text = text.replace("    groups:", expo_ignore().rstrip("\n").join(["", "\n"]) + "    groups:", 1)
         if kind == "monorepo":
             text = text.replace(
                 '    directory: "/"\n    open-pull-requests-limit: 2',

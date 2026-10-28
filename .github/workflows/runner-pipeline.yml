@@ -129,7 +129,6 @@ jobs:
         with:
           repository: Volontariapp/ci-tools
           path: ci-tools
-          token: ${{ secrets.ORG_REPO_TOKEN }}
 
       - name: Setup Database for integration tests
         if: steps.integration-check.outputs.has_integration == 'true'

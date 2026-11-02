@@ -7,17 +7,32 @@ name: "PR Ready Notification"
 #   - pull requests opened by Dependabot
 #   - pull requests carrying the `notify-discord` label (opt-in for human pull requests)
 #
-# One pull request = one message: once sent, the `discord-notified` label is set and later
-# runs (new pushes) do nothing. Remove that label to be notified again.
+# One pull request = one message. The `discord-notified` label is the claim: it is set BEFORE
+# the message is sent (if it cannot be set, nothing is sent and the job fails), and removed again
+# if the send fails so that a rerun can retry. Later runs (new pushes) see the label and do
+# nothing. Remove the label by hand to be notified again.
 #
 # Caller (the last job of the repository CI):
 #   notify-ready:
 #     needs: [ci, ci-docker, e2e]
-#     if: github.event_name == 'pull_request'
+#     # No status function alone: `needs:` implies success(), so a skipped job (conditional e2e)
+#     # would skip the notification. failure()/cancelled() keep red and cancelled runs out.
+#     if: ${{ !failure() && !cancelled() && github.event_name == 'pull_request' }}
+#     # A reusable workflow cannot raise the permissions of its caller. Without this block, a
+#     # workflow-level `permissions: contents: read` makes the label impossible to set.
+#     permissions:
+#       contents: read
+#       issues: write
+#       pull-requests: write
 #     uses: Volontariapp/ci-tools/.github/workflows/pr-ready-notify.yml@main
 #     with:
 #       channel: backend   # or frontend
 #     secrets: inherit
+#
+# Known limits (no other trigger exists, by design):
+#   - If the PR is still UNKNOWN or CONFLICTING when the CI ends, or if `notify-discord` is added
+#     after the CI ended, nothing is sent. Fix the conflict or add the label, then push again.
+#   - A Discord outage makes this job red after its retries. Do NOT make it a required check.
 
 on:
   workflow_call:
@@ -42,6 +57,7 @@ jobs:
     name: Notify Discord (PR ready)
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
       issues: write
@@ -80,13 +96,13 @@ jobs:
           fi
 
           # Live read: the event payload is frozen when the run starts, labels may have changed.
-          for attempt in 1 2 3 4 5 6; do
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
             gh pr view "$PR_NUMBER" --repo "$REPO" \
               --json labels,mergeable,isDraft,state > pr.json
             MERGEABLE=$(jq -r '.mergeable' pr.json)
             [ "$MERGEABLE" != "UNKNOWN" ] && break
             echo "mergeable is still UNKNOWN (attempt $attempt), waiting"
-            sleep 5
+            sleep 6
           done
 
           LABELS=$(jq -r '.labels[].name' pr.json)
@@ -111,7 +127,26 @@ jobs:
 
           echo "send=true" >> "$GITHUB_OUTPUT"
 
+      # Claim first: if the label cannot be set, no message is sent (and the job fails loudly)
+      # instead of notifying again on every push.
+      - name: Claim the notification (set the discord-notified label)
+        id: claim
+        if: steps.decide.outputs.send == 'true'
+        run: |
+          set -euo pipefail
+          # Plain create without --force: an existing label is left untouched.
+          gh label create "discord-notified" --repo "$REPO" \
+            --color 5865F2 --description "A Discord notification was sent for this PR" || true
+          if ! gh pr edit "$PR_NUMBER" --repo "$REPO" --add-label "discord-notified"; then
+            echo "::error::Cannot set the discord-notified label (token without write access?)." \
+                 "Nothing was sent, to avoid notifying on every push. The calling job needs" \
+                 "'issues: write' and 'pull-requests: write', and ORG_REPO_TOKEN must be available" \
+                 "to Dependabot runs."
+            exit 1
+          fi
+
       - name: Send the Discord message
+        id: send
         if: steps.decide.outputs.send == 'true'
         run: |
           set -euo pipefail
@@ -127,25 +162,31 @@ jobs:
           import json, sys
           repo, number = sys.argv[1], sys.argv[2]
           pr = json.load(open("pr-info.json"))
+          title = pr["title"][:200]
           embed = {
               "title": f"PR prête : {repo}#{number}",
-              "description": f"{pr['title']}\n`{pr['headRefName']}` vers `{pr['baseRefName']}`",
+              "description": f"{title}\n{pr['headRefName'][:100]} vers {pr['baseRefName']}",
               "url": pr["url"],
               "color": 3066993,
               "footer": {"text": "PLIC • Volontariapp"},
           }
-          print(json.dumps({"username": "PLIC Bot", "embeds": [embed]}))
+          # allowed_mentions.parse = []: a title or branch name can never ping anyone.
+          print(json.dumps({
+              "username": "PLIC Bot",
+              "allowed_mentions": {"parse": []},
+              "embeds": [embed],
+          }))
           PY
           )
 
-          # -f: fail on an HTTP error so the label below is only set after a successful send.
-          curl -fsS -X POST -H "Content-Type: application/json" -d "$PAYLOAD" "$WEBHOOK" > /dev/null
+          # -f: fail on an HTTP error. Retries absorb a 429 or a 5xx from Discord.
+          curl -fsS --max-time 20 --retry 3 --retry-all-errors \
+            -X POST -H "Content-Type: application/json" -d "$PAYLOAD" "$WEBHOOK" > /dev/null
           echo "Discord notified for $REPO#$PR_NUMBER"
 
-      - name: Remember that this PR was notified
-        if: steps.decide.outputs.send == 'true'
+      # The send failed after the claim: release it so that a rerun can notify.
+      - name: Release the claim after a failed send
+        if: failure() && steps.send.outcome == 'failure'
         run: |
-          set -euo pipefail
-          gh label create "discord-notified" --repo "$REPO" --force \
-            --color 5865F2 --description "A Discord notification was sent for this PR"
-          gh pr edit "$PR_NUMBER" --repo "$REPO" --add-label "discord-notified"
+          gh pr edit "$PR_NUMBER" --repo "$REPO" --remove-label "discord-notified" || \
+            echo "::warning::Could not remove the discord-notified label, remove it by hand to retry."

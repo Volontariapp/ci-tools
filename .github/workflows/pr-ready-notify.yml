@@ -1,0 +1,151 @@
+name: "PR Ready Notification"
+
+# Sends ONE Discord message when a pull request is ready: every job the caller waits for
+# (`needs:`) is green and the PR has no merge conflict.
+#
+# Who is notified:
+#   - pull requests opened by Dependabot
+#   - pull requests carrying the `notify-discord` label (opt-in for human pull requests)
+#
+# One pull request = one message: once sent, the `discord-notified` label is set and later
+# runs (new pushes) do nothing. Remove that label to be notified again.
+#
+# Caller (the last job of the repository CI):
+#   notify-ready:
+#     needs: [ci, ci-docker, e2e]
+#     if: github.event_name == 'pull_request'
+#     uses: Volontariapp/ci-tools/.github/workflows/pr-ready-notify.yml@main
+#     with:
+#       channel: backend   # or frontend
+#     secrets: inherit
+
+on:
+  workflow_call:
+    inputs:
+      channel:
+        description: "Discord channel to notify: backend or frontend"
+        required: true
+        type: string
+    secrets:
+      DISCORD_WEBHOOK_BACKEND:
+        required: false
+      DISCORD_WEBHOOK_FRONTEND:
+        required: false
+      ORG_REPO_TOKEN:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    name: Notify Discord (PR ready)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    # Two runs for the same PR must not both read "not notified yet".
+    concurrency:
+      group: discord-pr-ready-${{ github.repository }}-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+    env:
+      # The Dependabot GITHUB_TOKEN is read-only, so labelling needs ORG_REPO_TOKEN
+      # (declared in the Dependabot secrets as well).
+      GH_TOKEN: ${{ secrets.ORG_REPO_TOKEN || github.token }}
+      REPO: ${{ github.repository }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+      CHANNEL: ${{ inputs.channel }}
+      WEBHOOK_BACKEND: ${{ secrets.DISCORD_WEBHOOK_BACKEND }}
+      WEBHOOK_FRONTEND: ${{ secrets.DISCORD_WEBHOOK_FRONTEND }}
+    steps:
+      # Everything below reads the pull request through `gh`: its title and branch names are
+      # untrusted input and must never be interpolated into the script with `${{ }}`.
+      - name: Decide whether to notify
+        id: decide
+        run: |
+          set -euo pipefail
+
+          case "$CHANNEL" in
+            backend)  WEBHOOK="$WEBHOOK_BACKEND" ;;
+            frontend) WEBHOOK="$WEBHOOK_FRONTEND" ;;
+            *) echo "::error::Unknown channel '$CHANNEL' (expected backend or frontend)"; exit 1 ;;
+          esac
+          if [ -z "$WEBHOOK" ]; then
+            echo "::warning::No Discord webhook secret for channel '$CHANNEL', skipping."
+            echo "send=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Live read: the event payload is frozen when the run starts, labels may have changed.
+          for attempt in 1 2 3 4 5 6; do
+            gh pr view "$PR_NUMBER" --repo "$REPO" \
+              --json labels,mergeable,isDraft,state > pr.json
+            MERGEABLE=$(jq -r '.mergeable' pr.json)
+            [ "$MERGEABLE" != "UNKNOWN" ] && break
+            echo "mergeable is still UNKNOWN (attempt $attempt), waiting"
+            sleep 5
+          done
+
+          LABELS=$(jq -r '.labels[].name' pr.json)
+          has_label() { printf '%s\n' "$LABELS" | grep -qxF "$1"; }
+
+          if has_label "discord-notified"; then
+            echo "Already notified for this PR, nothing to do."
+            echo "send=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if [ "$PR_AUTHOR" != "dependabot[bot]" ] && ! has_label "notify-discord"; then
+            echo "Not a Dependabot PR and no notify-discord label, nothing to do."
+            echo "send=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if [ "$(jq -r '.isDraft' pr.json)" = "true" ]; then
+            echo "Draft PR, nothing to do."
+            echo "send=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if [ "$MERGEABLE" != "MERGEABLE" ]; then
+            echo "::warning::PR is not mergeable (state: $MERGEABLE), not notifying yet."
+            echo "send=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+
+          echo "send=true" >> "$GITHUB_OUTPUT"
+
+      - name: Send the Discord message
+        if: steps.decide.outputs.send == 'true'
+        run: |
+          set -euo pipefail
+          case "$CHANNEL" in
+            backend)  WEBHOOK="$WEBHOOK_BACKEND" ;;
+            frontend) WEBHOOK="$WEBHOOK_FRONTEND" ;;
+          esac
+
+          gh pr view "$PR_NUMBER" --repo "$REPO" \
+            --json title,url,headRefName,baseRefName,author > pr-info.json
+
+          PAYLOAD=$(python3 - "$REPO" "$PR_NUMBER" <<'PY'
+          import json, sys
+          repo, number = sys.argv[1], sys.argv[2]
+          pr = json.load(open("pr-info.json"))
+          embed = {
+              "title": f"PR prête : {repo}#{number}",
+              "description": f"{pr['title']}\n`{pr['headRefName']}` vers `{pr['baseRefName']}`",
+              "url": pr["url"],
+              "color": 3066993,
+              "footer": {"text": "PLIC • Volontariapp"},
+          }
+          print(json.dumps({"username": "PLIC Bot", "embeds": [embed]}))
+          PY
+          )
+
+          # -f: fail on an HTTP error so the label below is only set after a successful send.
+          curl -fsS -X POST -H "Content-Type: application/json" -d "$PAYLOAD" "$WEBHOOK" > /dev/null
+          echo "Discord notified for $REPO#$PR_NUMBER"
+
+      - name: Remember that this PR was notified
+        if: steps.decide.outputs.send == 'true'
+        run: |
+          set -euo pipefail
+          gh label create "discord-notified" --repo "$REPO" --force \
+            --color 5865F2 --description "A Discord notification was sent for this PR"
+          gh pr edit "$PR_NUMBER" --repo "$REPO" --add-label "discord-notified"

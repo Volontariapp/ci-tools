@@ -56,19 +56,42 @@ jobs:
       - name: Docker Compose Pull
         run: docker compose -f ci-tools/docker-compose.yml --profile e2e --profile migrations pull
 
+      # Every service of the migrations profile (ms-*-migration, minio-init) runs in parallel.
+      # A failing migration fails the step instead of being swallowed by a bare `wait`.
       - name: Run Migrations
         run: |
-          docker compose -f ci-tools/docker-compose.yml --profile migrations run --rm ms-user-migration &
-          docker compose -f ci-tools/docker-compose.yml --profile migrations run --rm ms-post-migration &
-          docker compose -f ci-tools/docker-compose.yml --profile migrations run --rm ms-event-migration &
-          docker compose -f ci-tools/docker-compose.yml --profile migrations run --rm ms-social-migration &
-          docker compose -f ci-tools/docker-compose.yml --profile migrations run --rm ms-storage-migration &
-          docker compose -f ci-tools/docker-compose.yml --profile migrations run --rm minio-init &
-          wait
+          pids=()
+          for svc in $(docker compose -f ci-tools/docker-compose.yml --profile migrations config --services | grep -E -- '-migration$|^minio-init$'); do
+            docker compose -f ci-tools/docker-compose.yml --profile migrations run --rm "$svc" &
+            pids+=("$!")
+          done
+          status=0
+          for pid in "${pids[@]}"; do wait "$pid" || status=1; done
+          exit "$status"
 
-      - name: Run E2E Infrastructure & Tests
+      # The stack stays up after the tests (no --exit-code-from, which stops every container):
+      # the diagnostics step below needs the live databases and Redis streams.
+      - name: Start E2E Infrastructure
         run: |
-          docker compose -f ci-tools/docker-compose.yml --profile e2e up --exit-code-from api-gateway-e2e
+          services=$(docker compose -f ci-tools/docker-compose.yml --profile e2e config --services | grep -vx 'api-gateway-e2e')
+          docker compose -f ci-tools/docker-compose.yml --profile e2e up -d --wait --wait-timeout 300 $services
+
+      - name: Run E2E Tests
+        run: docker compose -f ci-tools/docker-compose.yml --profile e2e run --rm --no-deps api-gateway-e2e
+
+      # Async failures are invisible in the test output alone: keep container logs, the outbox
+      # tables and the Redis stream lengths (including the DLQs) as an artifact.
+      - name: Collect E2E Diagnostics
+        if: failure()
+        run: ./ci-tools/scripts/e2e-collect-diagnostics.sh e2e-diagnostics
+
+      - name: Upload E2E Diagnostics
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-diagnostics
+          path: e2e-diagnostics
+          retention-days: 7
 
       - name: Cleanup
         if: always()

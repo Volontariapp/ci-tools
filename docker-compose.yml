@@ -52,6 +52,26 @@ x-migration-base: &migration-base
     - ./certs:/app/certs:ro
   entrypoint: ["/bin/sh", "-c", "node ./node_modules/typeorm/cli.js migration:run -d ./dist/config/data-source.js"]
 
+# Async pipeline runners (outbox, post-processors). Only in the e2e profile: a local
+# `docker compose up` must not start a second consumer next to the runners started on the host.
+x-runner-base: &runner-base
+  <<: *network-config
+  profiles: [e2e]
+  volumes:
+    - ./certs:/app/certs:ro
+  healthcheck:
+    test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:$${PORT}/health || exit 1"]
+    interval: 10s
+    timeout: 5s
+    retries: 5
+    start_period: 30s
+    start_interval: 1s
+
+x-runner-fast-polling: &runner-fast-polling
+  OUTBOX_BATCH_INTERVAL_MS: "100"
+  POST_PROCESSOR_BLOCK_TIMEOUT: "1000"
+  POST_PROCESSOR_RETRY_DELAY_MS: "200"
+
 # --- 4. DATABASE SPECIFIC ENVS ---
 x-db-common: &db-common
   DB_PORT: "5432"
@@ -341,6 +361,9 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+      # Neo4j takes ~25 s on a cold start: without a start period the 5 retries run out first.
+      start_period: 60s
+      start_interval: 1s
 
   redis:
     image: redis:7-alpine
@@ -472,6 +495,9 @@ services:
       - e2e
     depends_on:
       api-gateway: { condition: service_healthy }
+      outbox-user: { condition: service_healthy }
+      outbox-social: { condition: service_healthy }
+      post-processor-social: { condition: service_healthy }
     networks:
       - volontariapp-network
     volumes:
@@ -605,6 +631,43 @@ services:
       postgres-storage: { condition: service_healthy }
       minio: { condition: service_healthy }
       clamd: { condition: service_healthy }
+
+  # Async pipeline runners. Tags come from e2e-matrix.json (one key per runner repo).
+  # user.created: ms-user trigger -> event_queue (ms_user) -> outbox-user -> stream social:user
+  # -> post-processor-social (Neo4j node + follow-up in event_queue of ms_social) -> outbox-social.
+  outbox-user:
+    <<: *runner-base
+    image: ghcr.io/volontariapp/outbox-user:${OUTBOX_RUNNERS_TAG:-latest}
+    container_name: outbox-user
+    environment:
+      <<: [*ms-common-env, *db-user, *runner-fast-polling]
+      PORT: "4101"
+    depends_on:
+      <<: *redis-deps
+      postgres-user: { condition: service_healthy }
+
+  outbox-social:
+    <<: *runner-base
+    image: ghcr.io/volontariapp/outbox-social:${OUTBOX_RUNNERS_TAG:-latest}
+    container_name: outbox-social
+    environment:
+      <<: [*ms-common-env, *db-social, *runner-fast-polling]
+      PORT: "4102"
+    depends_on:
+      <<: *redis-deps
+      postgres-social: { condition: service_healthy }
+
+  post-processor-social:
+    <<: *runner-base
+    image: ghcr.io/volontariapp/post-processor-social:${POST_PROCESSORS_RUNNER_TAG:-latest}
+    container_name: post-processor-social
+    environment:
+      <<: [*ms-common-env, *db-social, *runner-fast-polling]
+      PORT: "4204"
+    depends_on:
+      <<: *redis-deps
+      postgres-social: { condition: service_healthy }
+      neo4j-social: { condition: service_healthy }
 
 volumes:
   postgres_user_data:

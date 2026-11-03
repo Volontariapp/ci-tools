@@ -25,6 +25,10 @@ for pg in $("${COMPOSE[@]}" config --services | grep -E '^postgres-'); do
   done
 done
 
+# Open Scatter-Gather sagas of ws-service: a row left here means a feedback event never came.
+"${COMPOSE[@]}" exec -T postgres-ws psql -U user -d ms_ws -c \
+  "SELECT * FROM gather_state ORDER BY 1 DESC LIMIT 200" > "$OUT_DIR/db/ms_ws.gather_state.txt" 2>&1
+
 {
   for key in $("${COMPOSE[@]}" exec -T redis redis-cli -a password --no-auth-warning --scan --type stream); do
     echo "$key $("${COMPOSE[@]}" exec -T redis redis-cli -a password --no-auth-warning XLEN "$key")"

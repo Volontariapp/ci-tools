@@ -523,6 +523,7 @@ services:
       outbox-user: { condition: service_healthy }
       outbox-social: { condition: service_healthy }
       post-processor-social: { condition: service_healthy }
+      ws-service: { condition: service_healthy }
     networks:
       - volontariapp-network
     volumes:
@@ -714,6 +715,39 @@ services:
       <<: *redis-deps
       postgres-social: { condition: service_healthy }
       neo4j-social: { condition: service_healthy }
+
+  # ws-service: socket.io server behind the api-gateway proxy (MS_WS_URL in x-grpc-routing,
+  # hence PORT 5005). REDIS_* is its own Redis (tracked users), GLOBAL_REDIS_* the main Redis
+  # (event streams and socket.io adapter). It gathers user.created (stream user:created) with
+  # USER_SOCIAL_CREATED (stream ws:user-created-feedback) and pushes user.created to the sockets.
+  ws-service-migration:
+    <<: *migration-base
+    profiles: [migrations]
+    image: ghcr.io/volontariapp/ws-service:${WS_SERVICE_TAG:-latest}
+    container_name: ws-service-migration
+    environment:
+      <<: [*ms-common-env, *db-ws]
+    depends_on:
+      postgres-ws: { condition: service_healthy }
+
+  ws-service:
+    <<: *runner-base
+    image: ghcr.io/volontariapp/ws-service:${WS_SERVICE_TAG:-latest}
+    container_name: ws-service
+    environment:
+      <<: [*ms-common-env, *db-ws, *runner-fast-polling]
+      PORT: "5005"
+      LOGGER_LEVEL: "info"
+      REDIS_HOST: redis-ws-service
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: password
+      GLOBAL_REDIS_HOST: redis
+      GLOBAL_REDIS_PORT: "6379"
+      GLOBAL_REDIS_PASSWORD: password
+    depends_on:
+      <<: *redis-deps
+      redis-ws-service: { condition: service_healthy }
+      postgres-ws: { condition: service_healthy }
 
 volumes:
   postgres_user_data:

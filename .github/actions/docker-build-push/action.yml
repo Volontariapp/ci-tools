@@ -67,6 +67,8 @@ runs:
         push: true
         tags: ${{ steps.meta-main.outputs.tags }}
         labels: ${{ steps.meta-main.outputs.labels }}
+        cache-from: type=gha,scope=${{ inputs.service-name }}
+        cache-to: type=gha,mode=max,scope=${{ inputs.service-name }}
 
     # --- E2E Image (Conditional) ---
     - name: Extract E2E metadata
@@ -94,3 +96,5 @@ runs:
         push: true
         tags: ${{ steps.meta-e2e.outputs.tags }}
         labels: ${{ steps.meta-e2e.outputs.labels }}
+        cache-from: type=gha,scope=${{ inputs.service-name }}-e2e
+        cache-to: type=gha,mode=max,scope=${{ inputs.service-name }}-e2e

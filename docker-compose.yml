@@ -43,8 +43,9 @@ x-microservice-base: &microservice-base
   healthcheck:
     interval: 10s
     timeout: 5s
-    retries: 3
-    start_period: 10s
+    retries: 5
+    start_period: 30s
+    start_interval: 1s
 
 x-migration-base: &migration-base
   <<: *network-config
@@ -224,6 +225,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
+      start_interval: 1s
 
   postgres-post:
     image: postgres:16-alpine
@@ -244,6 +247,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
+      start_interval: 1s
 
   postgres-event:
     image: postgis/postgis:16-3.4
@@ -265,6 +270,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
+      start_interval: 1s
 
   postgres-social:
     image: postgres:16-alpine
@@ -285,6 +292,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
+      start_interval: 1s
 
   postgres-ws:
     image: postgres:16-alpine
@@ -305,6 +314,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
+      start_interval: 1s
 
   postgres-storage:
     image: postgres:16-alpine
@@ -325,6 +336,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
+      start_interval: 1s
 
   postgres-ranking:
     image: postgres:16-alpine
@@ -345,6 +358,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
+      start_interval: 1s
 
   neo4j-social:
     image: neo4j:5.20-community
@@ -383,6 +398,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+      start_period: 10s
+      start_interval: 1s
     volumes:
       - redis_data:/data
     restart: always
@@ -405,6 +422,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+      start_period: 10s
+      start_interval: 1s
     volumes:
       - redis_ws_data:/data
     restart: always
@@ -443,6 +462,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+      start_period: 10s
+      start_interval: 1s
 
   minio-init:
     profiles: [migrations]
@@ -480,6 +501,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+      start_interval: 1s
 
     depends_on:
       ms-social: { condition: service_healthy }
@@ -533,6 +555,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+      start_interval: 1s
     depends_on:
       <<: *redis-deps
       postgres-social: { condition: service_healthy }
@@ -557,6 +580,11 @@ services:
       <<: [*ms-common-env, *db-user]
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+      start_interval: 1s
     depends_on:
       <<: *redis-deps
       postgres-user: { condition: service_healthy }
@@ -580,6 +608,11 @@ services:
       <<: [*ms-common-env, *db-post]
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+      start_interval: 1s
     depends_on:
       <<: *redis-deps
       postgres-post: { condition: service_healthy }
@@ -603,6 +636,11 @@ services:
       <<: [*ms-common-env, *db-event]
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3003/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+      start_interval: 1s
     depends_on:
       <<: *redis-deps
       postgres-event: { condition: service_healthy }
@@ -626,6 +664,11 @@ services:
       <<: [*ms-common-env, *db-storage, *storage-env]
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3006/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+      start_interval: 1s
     depends_on:
       <<: *redis-deps
       postgres-storage: { condition: service_healthy }

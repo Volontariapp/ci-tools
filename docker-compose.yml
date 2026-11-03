@@ -221,7 +221,10 @@ services:
     networks:
       - volontariapp-network
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U user -d ms_user']
+      # -h 127.0.0.1 (TCP) on every postgres: on first start the image runs initdb scripts on a
+      # temporary server that only listens on the unix socket, then restarts. A socket check
+      # reports healthy during init and, with start_interval 1s, migrations hit the restart.
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U user -d ms_user']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -243,7 +246,7 @@ services:
     networks:
       - volontariapp-network
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U user -d ms_post']
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U user -d ms_post']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -266,7 +269,7 @@ services:
     networks:
       - volontariapp-network
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U user -d ms_event']
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U user -d ms_event']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -288,7 +291,7 @@ services:
     networks:
       - volontariapp-network
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U user -d ms_social']
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U user -d ms_social']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -310,7 +313,7 @@ services:
     networks:
       - volontariapp-network
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U user -d ms_ws']
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U user -d ms_ws']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -332,7 +335,7 @@ services:
     networks:
       - volontariapp-network
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U user -d ms_storage']
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U user -d ms_storage']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -354,7 +357,7 @@ services:
     networks:
       - volontariapp-network
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U user -d ms_ranking']
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U user -d ms_ranking']
       interval: 10s
       timeout: 5s
       retries: 5

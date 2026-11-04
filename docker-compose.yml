@@ -10,6 +10,7 @@ x-grpc-routing: &grpc-routing
   MS_USER_URL: "ms-user:5001"
   MS_WS_URL: "ws-service:5005"
   MS_STORAGE_URL: "ms-storage:5006"
+  MS_RANKING_URL: "ms-ranking:5007"
 
 # --- 2. NETWORK & PORT BASIS ---
 x-network-config: &network-config
@@ -72,6 +73,14 @@ x-runner-fast-polling: &runner-fast-polling
   OUTBOX_BATCH_INTERVAL_MS: "100"
   POST_PROCESSOR_BLOCK_TIMEOUT: "1000"
   POST_PROCESSOR_RETRY_DELAY_MS: "200"
+
+# Ranking settings shared by ms-ranking, post-processor-ranking and worker-ranking: no debounce
+# (a compute job runs as soon as it is written), the same location key everywhere (the worker
+# decrypts what ms-ranking stores) and no call to the external JEV scorer.
+x-ranking-env: &ranking-env
+  RANKING_DEBOUNCE_SECONDS: "0"
+  RANKING_LOCATION_KEY: "test-only-location-key-32-bytes!"
+  RANKING_JEV_ENABLED: "false"
 
 # --- 4. DATABASE SPECIFIC ENVS ---
 x-db-common: &db-common
@@ -511,6 +520,7 @@ services:
       ms-user:   { condition: service_healthy }
       ms-post:   { condition: service_healthy }
       ms-event:  { condition: service_healthy }
+      ms-ranking: { condition: service_healthy }
 
   # API-GATEWAY-E2E
   api-gateway-e2e:
@@ -522,7 +532,12 @@ services:
       api-gateway: { condition: service_healthy }
       outbox-user: { condition: service_healthy }
       outbox-social: { condition: service_healthy }
+      outbox-event: { condition: service_healthy }
+      outbox-post: { condition: service_healthy }
+      outbox-ranking: { condition: service_healthy }
       post-processor-social: { condition: service_healthy }
+      post-processor-ranking: { condition: service_healthy }
+      worker-ranking: { condition: service_healthy }
       ws-service: { condition: service_healthy }
     networks:
       - volontariapp-network
@@ -531,6 +546,7 @@ services:
     environment:
       - NODE_ENV=test
       - E2E_TARGET_URL=http://api-gateway:5000
+      - E2E_RANKING_ENABLED=true
 
   # Micro-services
   # Migration containers run as a dedicated pre-step (--profile migrations --wait)
@@ -679,6 +695,34 @@ services:
       minio: { condition: service_healthy }
       clamd: { condition: service_healthy }
 
+  ms-ranking-migration:
+    <<: *migration-base
+    profiles: [migrations]
+    image: ghcr.io/volontariapp/ms-ranking:${MS_RANKING_TAG:-latest}
+    container_name: ms-ranking-migration
+    environment:
+      <<: [*ms-common-env, *db-ranking]
+    depends_on:
+      postgres-ranking: { condition: service_healthy }
+
+  ms-ranking:
+    image: ghcr.io/volontariapp/ms-ranking:${MS_RANKING_TAG:-latest}
+    container_name: ms-ranking
+    <<: *microservice-base
+    environment:
+      PORT: "3007"
+      <<: [*ms-common-env, *db-ranking, *ranking-env]
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3007/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+      start_interval: 1s
+    depends_on:
+      <<: *redis-deps
+      postgres-ranking: { condition: service_healthy }
+
   # Async pipeline runners. Tags come from e2e-matrix.json (one key per runner repo).
   # user.created: ms-user trigger -> event_queue (ms_user) -> outbox-user -> stream social:user
   # -> post-processor-social (Neo4j node + follow-up in event_queue of ms_social) -> outbox-social.
@@ -704,6 +748,36 @@ services:
       <<: *redis-deps
       postgres-social: { condition: service_healthy }
 
+  # event.created / event.deleted: ms-event (event_queue of ms_event) -> outbox-event -> streams
+  # event:created / event:deleted -> post-processor-social (SocialEvent node and CREATED link of
+  # the organizer, DETACH DELETE on deletion) and post-processor-ranking (fan-out job).
+  # post-processor-event is left out on purpose: in NODE_ENV=test its geocoder answers fixed Paris
+  # coordinates and would overwrite the location of every event created by the suite.
+  outbox-event:
+    <<: *runner-base
+    image: ghcr.io/volontariapp/outbox-event:${OUTBOX_RUNNERS_TAG:-latest}
+    container_name: outbox-event
+    environment:
+      <<: [*ms-common-env, *db-event, *runner-fast-polling]
+      PORT: "4104"
+    depends_on:
+      <<: *redis-deps
+      postgres-event: { condition: service_healthy }
+
+  # post.created / post.deleted: ms-post (event_queue of ms_post) -> outbox-post -> streams
+  # post:created / post:deleted -> post-processor-social (SocialPost node, OWN link of the author,
+  # LINK_TO_EVENT when the event node exists) and post-processor-ranking (feed fan-out job).
+  outbox-post:
+    <<: *runner-base
+    image: ghcr.io/volontariapp/outbox-post:${OUTBOX_RUNNERS_TAG:-latest}
+    container_name: outbox-post
+    environment:
+      <<: [*ms-common-env, *db-post, *runner-fast-polling]
+      PORT: "4103"
+    depends_on:
+      <<: *redis-deps
+      postgres-post: { condition: service_healthy }
+
   post-processor-social:
     <<: *runner-base
     image: ghcr.io/volontariapp/post-processor-social:${POST_PROCESSORS_RUNNER_TAG:-latest}
@@ -715,6 +789,43 @@ services:
       <<: *redis-deps
       postgres-social: { condition: service_healthy }
       neo4j-social: { condition: service_healthy }
+
+  # Ranking: post-processor-ranking turns user.created, event.created, post.created... into compute
+  # or fan-out jobs in jobs_outbox of ms_ranking; ms-ranking writes the on-demand and manual jobs
+  # there too. outbox-ranking pushes them to BullMQ and worker-ranking computes the lists (gRPC
+  # calls to ms-social, ms-event and ms-post with the internal token).
+  outbox-ranking:
+    <<: *runner-base
+    image: ghcr.io/volontariapp/outbox-ranking:${OUTBOX_RUNNERS_TAG:-latest}
+    container_name: outbox-ranking
+    environment:
+      <<: [*ms-common-env, *db-ranking, *runner-fast-polling]
+      PORT: "4107"
+    depends_on:
+      <<: *redis-deps
+      postgres-ranking: { condition: service_healthy }
+
+  post-processor-ranking:
+    <<: *runner-base
+    image: ghcr.io/volontariapp/post-processor-ranking:${POST_PROCESSORS_RUNNER_TAG:-latest}
+    container_name: post-processor-ranking
+    environment:
+      <<: [*ms-common-env, *db-ranking, *runner-fast-polling, *ranking-env]
+      PORT: "4206"
+    depends_on:
+      <<: *redis-deps
+      postgres-ranking: { condition: service_healthy }
+
+  worker-ranking:
+    <<: *runner-base
+    image: ghcr.io/volontariapp/worker-ranking:${WORKERS_RUNNERS_TAG:-latest}
+    container_name: worker-ranking
+    environment:
+      <<: [*ms-common-env, *db-ranking, *ranking-env]
+      PORT: "4307"
+    depends_on:
+      <<: *redis-deps
+      postgres-ranking: { condition: service_healthy }
 
   # ws-service: socket.io server behind the api-gateway proxy (MS_WS_URL in x-grpc-routing,
   # hence PORT 5005). REDIS_* is its own Redis (tracked users), GLOBAL_REDIS_* the main Redis

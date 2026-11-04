@@ -20,6 +20,9 @@ on:
       ORG_REPO_TOKEN:
         description: "GitHub token with access to private repositories and deploy repository"
         required: true
+      DOCKER_PULL_TOKEN:
+        description: "Token used by the E2E job to pull images from GHCR (needed on labelled pull requests)"
+        required: false
 
 jobs:
   changes:
@@ -177,6 +180,85 @@ jobs:
           file: ./${{ matrix.service }}/Dockerfile
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
+  # --- Pull request E2E (label docker-and-e2e) ---
+  # The compose stack uses one image tag per runner repository (OUTBOX_RUNNERS_TAG, ...), so every
+  # sub-service is built and pushed with the branch tag, not only the changed ones.
+  e2e-gate:
+    name: E2E Label Gate
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    outputs:
+      enabled: ${{ steps.gate.outputs.enabled }}
+    steps:
+      # The event payload is frozen when the run starts: read the labels live (ORG_REPO_TOKEN) as well.
+      # Unlike service repositories, a missing label does not fail the run: the E2E is simply skipped.
+      - name: Check for docker-and-e2e label
+        id: gate
+        env:
+          GH_TOKEN: ${{ secrets.ORG_REPO_TOKEN }}
+          PAYLOAD_LABELS: ${{ join(github.event.pull_request.labels.*.name, ' ') }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          labels="$PAYLOAD_LABELS"
+          if [ -n "$GH_TOKEN" ]; then
+            labels="$labels $(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json labels --jq '.labels[].name' | tr '\n' ' ' || true)"
+          fi
+          if echo " $labels " | grep -q " docker-and-e2e "; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::The 'docker-and-e2e' label is missing: Docker images and E2E skipped. Add the label and re-run to run them."
+          fi
+
+  docker-pr:
+    name: Build & Push PR Image (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    needs: [e2e-gate, check]
+    if: ${{ !cancelled() && needs.e2e-gate.outputs.enabled == 'true' && contains(fromJSON('["success","skipped"]'), needs.check.result) }}
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJSON(inputs.services) }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+        with:
+          submodules: recursive
+
+      # e2e-matrix-parsing.sh resolves the tag as the branch name with / replaced by -
+      - name: Resolve branch tag
+        id: tag
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: echo "tag=${HEAD_REF//\//-}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and Push Docker Image
+        uses: Volontariapp/ci-tools/.github/actions/docker-build-push@main
+        with:
+          service-name: ${{ matrix.service }}
+          context: ./${{ matrix.service }}
+          file: ./${{ matrix.service }}/Dockerfile
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          extra-tag: ${{ steps.tag.outputs.tag }}
+
+  e2e:
+    name: E2E
+    needs: [e2e-gate, docker-pr]
+    if: ${{ !cancelled() && needs.docker-pr.result == 'success' }}
+    permissions:
+      contents: read
+      packages: read
+    uses: Volontariapp/ci-tools/.github/workflows/e2e-orchestrator.yml@main
+    secrets: inherit
+
+  validate-e2e-matrix:
+    name: Validate E2E Matrix
+    uses: Volontariapp/ci-tools/.github/workflows/e2e-matrix-checker.yml@main
+    with:
+      service-name: ${{ inputs.service-name }}
 
   deploy:
     name: Update Deploy Submodule

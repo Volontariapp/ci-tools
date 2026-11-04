@@ -1,0 +1,11 @@
+api-gateway
+ms-user
+ms-event
+ms-social
+ms-post
+ms-storage
+ms-ranking
+ws-service
+outbox-runners
+post-processors-runner
+workers-runners

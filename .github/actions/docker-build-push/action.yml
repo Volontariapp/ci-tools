@@ -16,6 +16,10 @@ inputs:
   github-token:
     description: 'GitHub Token for GHCR authentication'
     required: true
+  extra-tag:
+    description: 'Optional additional tag applied to the main and E2E images (already sanitized, no slash)'
+    required: false
+    default: ''
 
 runs:
   using: 'composite'
@@ -54,6 +58,7 @@ runs:
           type=ref,event=branch
           type=ref,event=pr
           type=raw,value=${{ github.head_ref }},enable=${{ github.event_name == 'pull_request' }}
+          type=raw,value=${{ inputs.extra-tag }},enable=${{ inputs.extra-tag != '' }}
           type=ref,event=tag
           type=sha
         flavor: |
@@ -82,6 +87,7 @@ runs:
           type=ref,event=branch
           type=ref,event=pr
           type=raw,value=${{ github.head_ref }},enable=${{ github.event_name == 'pull_request' }}
+          type=raw,value=${{ inputs.extra-tag }},enable=${{ inputs.extra-tag != '' }}
           type=ref,event=tag
           type=sha
         flavor: |

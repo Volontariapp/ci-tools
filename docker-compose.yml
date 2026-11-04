@@ -535,9 +535,17 @@ services:
       outbox-event: { condition: service_healthy }
       outbox-post: { condition: service_healthy }
       outbox-ranking: { condition: service_healthy }
+      outbox-storage: { condition: service_healthy }
+      outbox-ws: { condition: service_healthy }
       post-processor-social: { condition: service_healthy }
       post-processor-ranking: { condition: service_healthy }
+      post-processor-post: { condition: service_healthy }
+      post-processor-event: { condition: service_healthy }
+      post-processor-storage: { condition: service_healthy }
+      post-processor-user: { condition: service_healthy }
       worker-ranking: { condition: service_healthy }
+      worker-storage: { condition: service_healthy }
+      ms-storage: { condition: service_healthy }
       ws-service: { condition: service_healthy }
     networks:
       - volontariapp-network
@@ -547,6 +555,9 @@ services:
       - NODE_ENV=test
       - E2E_TARGET_URL=http://api-gateway:5000
       - E2E_RANKING_ENABLED=true
+      # Upload URLs are signed for S3_PUBLIC_ENDPOINT (localhost:9000), which does not reach minio
+      # from this container. A POST policy does not sign the host: the tests post the same form here.
+      - E2E_S3_ORIGIN=http://minio:9000
 
   # Micro-services
   # Migration containers run as a dedicated pre-step (--profile migrations --wait)
@@ -751,8 +762,6 @@ services:
   # event.created / event.deleted: ms-event (event_queue of ms_event) -> outbox-event -> streams
   # event:created / event:deleted -> post-processor-social (SocialEvent node and CREATED link of
   # the organizer, DETACH DELETE on deletion) and post-processor-ranking (fan-out job).
-  # post-processor-event is left out on purpose: in NODE_ENV=test its geocoder answers fixed Paris
-  # coordinates and would overwrite the location of every event created by the suite.
   outbox-event:
     <<: *runner-base
     image: ghcr.io/volontariapp/outbox-event:${OUTBOX_RUNNERS_TAG:-latest}
@@ -826,6 +835,103 @@ services:
     depends_on:
       <<: *redis-deps
       postgres-ranking: { condition: service_healthy }
+
+  # Account deletion (user.deleted fan-out, USER_DELETION gather of ws-service). Each domain purges
+  # then writes its acknowledgement (USER_*_DELETED, or USER_*_DELETION_FAILED from the DLQ hook) to
+  # its own event_queue; its outbox pushes it to ws:user-deleted-feedback. post-processor-social
+  # (above) and post-processor-ranking (above) already run; these complete the five domains:
+  #   post-processor-post: posts purged, comments anonymised (ms_post, outbox-post);
+  #   post-processor-event: events of the organizer deleted, event.deleted re-emitted (ms_event,
+  #     outbox-event). It also consumes event.created: GEOCODING_ENABLED=false keeps the locations
+  #     given by the scenarios (in NODE_ENV=test the geocoder answers fixed Paris coordinates);
+  #   post-processor-storage: files of the owner released (ms_storage, outbox-storage).
+  # Once the five keys are in, ws-service writes user.deletion_successfull to ms_ws: outbox-ws
+  # pushes it and post-processor-user calls finalizeDeletion (users row deleted).
+  post-processor-post:
+    <<: *runner-base
+    image: ghcr.io/volontariapp/post-processor-post:${POST_PROCESSORS_RUNNER_TAG:-latest}
+    container_name: post-processor-post
+    environment:
+      <<: [*ms-common-env, *db-post, *runner-fast-polling]
+      PORT: "4202"
+    depends_on:
+      <<: *redis-deps
+      postgres-post: { condition: service_healthy }
+
+  post-processor-event:
+    <<: *runner-base
+    image: ghcr.io/volontariapp/post-processor-event:${POST_PROCESSORS_RUNNER_TAG:-latest}
+    container_name: post-processor-event
+    environment:
+      <<: [*ms-common-env, *db-event, *runner-fast-polling]
+      PORT: "4203"
+      GEOCODING_ENABLED: "false"
+    depends_on:
+      <<: *redis-deps
+      postgres-event: { condition: service_healthy }
+
+  post-processor-storage:
+    <<: *runner-base
+    image: ghcr.io/volontariapp/post-processor-storage:${POST_PROCESSORS_RUNNER_TAG:-latest}
+    container_name: post-processor-storage
+    environment:
+      <<: [*ms-common-env, *db-storage, *runner-fast-polling]
+      PORT: "4205"
+    depends_on:
+      <<: *redis-deps
+      postgres-storage: { condition: service_healthy }
+
+  # finalizeDeletion lives in domain-user: post-processor-user writes to ms_user and signs an
+  # internal token (certs/internal.key) for its gRPC calls to ms-social.
+  post-processor-user:
+    <<: *runner-base
+    image: ghcr.io/volontariapp/post-processor-user:${POST_PROCESSORS_RUNNER_TAG:-latest}
+    container_name: post-processor-user
+    environment:
+      <<: [*ms-common-env, *db-user, *runner-fast-polling]
+      PORT: "4201"
+    depends_on:
+      <<: *redis-deps
+      postgres-user: { condition: service_healthy }
+
+  # Files: ms-storage writes scan jobs (jobs_outbox) and storage events (event_queue) to ms_storage.
+  # outbox-storage pushes both; worker-storage scans ASYNC uploads (clamd) and publishes to minio.
+  outbox-storage:
+    <<: *runner-base
+    image: ghcr.io/volontariapp/outbox-storage:${OUTBOX_RUNNERS_TAG:-latest}
+    container_name: outbox-storage
+    environment:
+      <<: [*ms-common-env, *db-storage, *runner-fast-polling]
+      PORT: "4106"
+    depends_on:
+      <<: *redis-deps
+      postgres-storage: { condition: service_healthy }
+
+  worker-storage:
+    <<: *runner-base
+    image: ghcr.io/volontariapp/worker-storage:${WORKERS_RUNNERS_TAG:-latest}
+    container_name: worker-storage
+    environment:
+      <<: [*ms-common-env, *db-storage, *storage-env]
+      PORT: "4306"
+    depends_on:
+      <<: *redis-deps
+      postgres-storage: { condition: service_healthy }
+      minio: { condition: service_healthy }
+      clamd: { condition: service_healthy }
+
+  # Gather completions (user.deletion_successfull, *.creation_failed...): ws-service writes them to
+  # event_queue of ms_ws, outbox-ws pushes them to the domain streams.
+  outbox-ws:
+    <<: *runner-base
+    image: ghcr.io/volontariapp/outbox-ws:${OUTBOX_RUNNERS_TAG:-latest}
+    container_name: outbox-ws
+    environment:
+      <<: [*ms-common-env, *db-ws, *runner-fast-polling]
+      PORT: "4105"
+    depends_on:
+      <<: *redis-deps
+      postgres-ws: { condition: service_healthy }
 
   # ws-service: socket.io server behind the api-gateway proxy (MS_WS_URL in x-grpc-routing,
   # hence PORT 5005). REDIS_* is its own Redis (tracked users), GLOBAL_REDIS_* the main Redis

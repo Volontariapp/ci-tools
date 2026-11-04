@@ -11,8 +11,12 @@ if [ ! -f "$JSON_FILE" ]; then
     exit 1
 fi
 
-# List of allowed services
-ALLOWED_SERVICES=("api-gateway" "ms-user" "ms-event" "ms-social" "ms-post" "ms-storage")
+# List of allowed services: single source of truth shared with validate-matrix-main.sh
+SERVICES_FILE="$(dirname "${BASH_SOURCE[0]}")/e2e-services.txt"
+ALLOWED_SERVICES=()
+while IFS= read -r line; do
+    [ -n "$line" ] && ALLOWED_SERVICES+=("$line")
+done < "$SERVICES_FILE"
 
 # Detect current repository and branch from GitHub environment
 CURRENT_SERVICE=""
@@ -57,7 +61,8 @@ resolve_tag() {
     fi
 }
 
-# Validate that all required services are present (and current one is absent)
+# The current service must be absent. A missing service defaults to main (transition for
+# callers that predate a newly added service).
 for SERVICE in "${ALLOWED_SERVICES[@]}"; do
     BRANCH_IN_JSON=$(jq -r --arg svc "$SERVICE" '.[$svc] // empty' "$JSON_FILE")
     if [ "$SERVICE" == "$CURRENT_SERVICE" ]; then
@@ -65,11 +70,8 @@ for SERVICE in "${ALLOWED_SERVICES[@]}"; do
             echo "Error: Cannot specify version for current service '$SERVICE' in $JSON_FILE. It is automatically determined by the current branch ($CURRENT_BRANCH)."
             exit 1
         fi
-    else
-        if [ -z "$BRANCH_IN_JSON" ]; then
-            echo "Error: Missing required service '$SERVICE' in $JSON_FILE. All services except the current one must be specified."
-            exit 1
-        fi
+    elif [ -z "$BRANCH_IN_JSON" ]; then
+        echo "::warning::Service '$SERVICE' is missing from $JSON_FILE, defaulting to main. Add \"$SERVICE\": \"main\" to silence this warning."
     fi
 done
 
@@ -77,7 +79,8 @@ done
 for SERVICE in "${ALLOWED_SERVICES[@]}"; do
     # Try to get branch from JSON
     BRANCH=$(jq -r --arg svc "$SERVICE" '.[$svc] // empty' "$JSON_FILE")
-    
+    BRANCH=${BRANCH:-main}
+
     if [ "$SERVICE" == "$CURRENT_SERVICE" ]; then
         # Use current branch for the service being tested
         BRANCH=$CURRENT_BRANCH
@@ -86,7 +89,7 @@ for SERVICE in "${ALLOWED_SERVICES[@]}"; do
     TAG=$(resolve_tag "$BRANCH")
     
     # Convert service name to env var format
-    ENV_VAR_NAME=$(echo "${SERVICE^^}" | tr '-' '_')_TAG
+    ENV_VAR_NAME=$(echo "$SERVICE" | tr '[:lower:]-' '[:upper:]_')_TAG
     
     # Write to .env file
     echo "${ENV_VAR_NAME}=${TAG}" >> "$OUTPUT_ENV"

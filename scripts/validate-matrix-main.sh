@@ -11,8 +11,12 @@ if [ ! -f "$JSON_FILE" ]; then
     exit 1
 fi
 
-# List of allowed services
-ALLOWED_SERVICES=("api-gateway" "ms-user" "ms-event" "ms-social" "ms-post" "ms-storage")
+# List of allowed services: single source of truth shared with e2e-matrix-parsing.sh
+SERVICES_FILE="$(dirname "${BASH_SOURCE[0]}")/e2e-services.txt"
+ALLOWED_SERVICES=()
+while IFS= read -r line; do
+    [ -n "$line" ] && ALLOWED_SERVICES+=("$line")
+done < "$SERVICES_FILE"
 
 if [ -n "$CURRENT_SERVICE" ]; then
     echo "Checking $JSON_FILE for non-main branches (excluding $CURRENT_SERVICE)..."
@@ -36,8 +40,7 @@ if [ -n "$CURRENT_SERVICE" ]; then
     done
 
     if [ -n "$MISSING_SERVICES" ]; then
-        echo "❌ Validation failed: Missing required services in $JSON_FILE:$MISSING_SERVICES"
-        exit 1
+        echo "::warning::Services missing from $JSON_FILE (default to main):$MISSING_SERVICES"
     fi
 
     # Check for non-main branches
@@ -56,8 +59,7 @@ else
     done
 
     if [ -n "$MISSING_SERVICES" ]; then
-        echo "❌ Validation failed: Missing required services in $JSON_FILE:$MISSING_SERVICES"
-        exit 1
+        echo "::warning::Services missing from $JSON_FILE (default to main):$MISSING_SERVICES"
     fi
 
     # Check for non-main branches

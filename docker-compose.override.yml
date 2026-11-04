@@ -55,3 +55,8 @@ services:
     profiles: ["local-ms-storage"]
     build:
       <<: *local-build
+
+  ms-ranking:
+    profiles: ["local-ms-ranking"]
+    build:
+      <<: *local-build

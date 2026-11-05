@@ -619,6 +619,9 @@ services:
     depends_on:
       <<: *redis-deps
       postgres-user: { condition: service_healthy }
+      # storage-client resolves ms-storage at startup (G7): without the container, Docker DNS
+      # fails, the channel stays in TRANSIENT_FAILURE and ConfirmFileAttachment answers 503.
+      ms-storage: { condition: service_healthy }
 
   ms-post-migration:
     <<: *migration-base
@@ -647,6 +650,8 @@ services:
     depends_on:
       <<: *redis-deps
       postgres-post: { condition: service_healthy }
+      # storage-client: ms-storage must resolve at startup (G7, see ms-user).
+      ms-storage: { condition: service_healthy }
 
   ms-event-migration:
     <<: *migration-base
@@ -675,6 +680,8 @@ services:
     depends_on:
       <<: *redis-deps
       postgres-event: { condition: service_healthy }
+      # storage-client: ms-storage must resolve at startup (G7, see ms-user).
+      ms-storage: { condition: service_healthy }
 
   ms-storage-migration:
     <<: *migration-base

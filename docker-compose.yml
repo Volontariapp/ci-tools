@@ -897,6 +897,8 @@ services:
     environment:
       <<: [*ms-common-env, *db-user, *runner-fast-polling]
       PORT: "4201"
+      # Credit the badge points into total_impact_score so the badge scenarios can assert them.
+      BADGE_POINTS_ENABLED: "true"
     depends_on:
       <<: *redis-deps
       postgres-user: { condition: service_healthy }

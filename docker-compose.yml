@@ -502,6 +502,10 @@ services:
 
     environment:
       PORT: "5000"
+      # Read deadline of gRPC calls to the microservices (prod default: 2000 ms). On the shared CI
+      # runner, cold Neo4j reads of ms-social go past 2 s and the gateway answered 504 at random.
+      # Read from process.env by api-gateway (src/common/grpc/read-deadline.ts), no config mapping.
+      GRPC_READ_DEADLINE_MS: "15000"
       <<: *grpc-routing
 
     volumes:

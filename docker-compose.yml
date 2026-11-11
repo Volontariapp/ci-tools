@@ -584,6 +584,10 @@ services:
     environment:
       <<: [*ms-common-env, *db-social]
       PORT: "3004"
+      # Neo4j read transaction timeout of ms-social (prod default: 1800 ms). On the shared CI
+      # runner, cold Neo4j reads go past 1.8 s and E2E requests failed with 500 at random.
+      # Read from process.env by domain-social (NEO4J_READ_TRANSACTION_TIMEOUT_MS, 0.22.0+).
+      NEO4J_READ_TRANSACTION_TIMEOUT_MS: "10000"
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3004/health"]
       interval: 10s

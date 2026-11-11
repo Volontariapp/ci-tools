@@ -506,6 +506,10 @@ services:
       # runner, cold Neo4j reads of ms-social go past 2 s and the gateway answered 504 at random.
       # Read from process.env by api-gateway (src/common/grpc/read-deadline.ts), no config mapping.
       GRPC_READ_DEADLINE_MS: "15000"
+      # Base URL of the public bucket (same value as storage-env). Without it the gateway omits
+      # avatarUrl, media[].url and coverUrl from its responses (PublicFileUrlService), so an E2E
+      # test cannot see them. Mapped by api-gateway/config/custom-env-vars.json (storage.publicBaseUrl).
+      S3_PUBLIC_BASE_URL: "http://localhost:9000/volontariapp-public"
       <<: *grpc-routing
 
     volumes:

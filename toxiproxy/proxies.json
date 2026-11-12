@@ -1,0 +1,14 @@
+[
+  {
+    "name": "ms-post__ms-storage",
+    "listen": "0.0.0.0:17001",
+    "upstream": "ms-storage:5006",
+    "enabled": true
+  },
+  {
+    "name": "ms-event__ms-storage",
+    "listen": "0.0.0.0:17002",
+    "upstream": "ms-storage:5006",
+    "enabled": true
+  }
+]

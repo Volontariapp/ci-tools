@@ -494,6 +494,21 @@ services:
       - ./scripts/init-buckets.sh:/init-buckets.sh:ro
     entrypoint: ["/bin/sh", "/init-buckets.sh"]
 
+  # FAULT INJECTION (E2E): a TCP relay between selected services. Each proxy of
+  # toxiproxy/proxies.json is named "<caller>__<callee>" and listens on its own port; the caller's
+  # URL variable (for example MS_STORAGE_URL of ms-post) points to it instead of the callee. The
+  # E2E tests cut, slow or restore a link through the HTTP API (port 8474, internal to the
+  # network: api-gateway-e2e reads TOXIPROXY_URL). No healthcheck: the image has no shell, and the
+  # proxies of the config file exist as soon as the process runs. See README, "Fault injection".
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy@sha256:5d3dae09bc185dcc5ff6cf43abf6062a4a720aff0c4306a471e773acdcd107aa # 2.13.0
+    container_name: toxiproxy
+    command: ["-host=0.0.0.0", "-config=/config/toxiproxy.json"]
+    volumes:
+      - ./toxiproxy/proxies.json:/config/toxiproxy.json:ro
+    networks:
+      - volontariapp-network
+
   # API-GATEWAY
   api-gateway:
     image: ghcr.io/volontariapp/api-gateway:${API_GATEWAY_TAG:-latest}
@@ -555,6 +570,7 @@ services:
       worker-storage: { condition: service_healthy }
       ms-storage: { condition: service_healthy }
       ws-service: { condition: service_healthy }
+      toxiproxy: { condition: service_started }
     networks:
       - volontariapp-network
     volumes:
@@ -563,6 +579,8 @@ services:
       - NODE_ENV=test
       - E2E_TARGET_URL=http://api-gateway:5000
       - E2E_RANKING_ENABLED=true
+      # HTTP API of toxiproxy, to cut / slow / restore a link (see README, "Fault injection").
+      - TOXIPROXY_URL=http://toxiproxy:8474
       # Upload URLs are signed for S3_PUBLIC_ENDPOINT (localhost:9000), which does not reach minio
       # from this container. A POST policy does not sign the host: the tests post the same form here.
       - E2E_S3_ORIGIN=http://minio:9000
@@ -652,6 +670,10 @@ services:
     environment:
       PORT: "3002"
       <<: [*ms-common-env, *db-post]
+      # The call to ms-storage goes through the toxiproxy proxy "ms-post__ms-storage"
+      # (toxiproxy/proxies.json), so an E2E test can cut or slow this one link. Transparent while
+      # the proxy is enabled. Overrides the value merged from grpc-routing.
+      MS_STORAGE_URL: "toxiproxy:17001"
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3002/health"]
       interval: 10s
@@ -664,6 +686,7 @@ services:
       postgres-post: { condition: service_healthy }
       # storage-client: ms-storage must resolve at startup (G7, see ms-user).
       ms-storage: { condition: service_healthy }
+      toxiproxy: { condition: service_started }
 
   ms-event-migration:
     <<: *migration-base
@@ -682,6 +705,8 @@ services:
     environment:
       PORT: "3003"
       <<: [*ms-common-env, *db-event]
+      # Through the toxiproxy proxy "ms-event__ms-storage", see ms-post.
+      MS_STORAGE_URL: "toxiproxy:17002"
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3003/health"]
       interval: 10s
@@ -694,6 +719,7 @@ services:
       postgres-event: { condition: service_healthy }
       # storage-client: ms-storage must resolve at startup (G7, see ms-user).
       ms-storage: { condition: service_healthy }
+      toxiproxy: { condition: service_started }
 
   ms-storage-migration:
     <<: *migration-base

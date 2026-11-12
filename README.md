@@ -89,3 +89,28 @@ docker compose --profile e2e up -d
 docker compose -f docker-compose.yml -f docker-compose.override.yml --profile local-ms-user up -d --build
 ```
 
+### Injection de pannes (Toxiproxy)
+Pour tester ce qui se passe quand un lien entre deux services tombe ou ralentit, un relais TCP ([Toxiproxy](https://github.com/Shopify/toxiproxy)) se place entre l'appelant et l'appelé. Tant que le relais est actif, il est transparent.
+
+- `toxiproxy/proxies.json` déclare les relais, chacun nommé `<appelant>__<appelé>` avec son propre port d'écoute (un relais par couple appelant/appelé : couper `ms-post` vers `ms-storage` ne touche pas `ms-event` vers `ms-storage`). Toxiproxy les crée au démarrage (`-config`).
+- La variable d'adresse de l'appelant pointe vers le relais au lieu de l'appelé. Aujourd'hui : `MS_STORAGE_URL` de `ms-post` (`toxiproxy:17001`) et de `ms-event` (`toxiproxy:17002`). `ms-user` et `api-gateway` appellent `ms-storage` directement.
+- `api-gateway-e2e` reçoit `TOXIPROXY_URL` (`http://toxiproxy:8474`), l'API HTTP de Toxiproxy, interne au réseau du compose.
+
+Pour ajouter un lien : une entrée dans `toxiproxy/proxies.json` avec un nouveau port, puis la variable d'adresse de l'appelant (dans son bloc `environment`) vers `toxiproxy:<port>`.
+
+```bash
+# Couper un lien, puis le rétablir
+curl -X POST -H 'Content-Type: application/json' http://toxiproxy:8474/proxies/ms-post__ms-storage -d '{"enabled": false}'
+curl -X POST -H 'Content-Type: application/json' http://toxiproxy:8474/proxies/ms-post__ms-storage -d '{"enabled": true}'
+
+# Simuler un appelé qui ne répond plus (données retenues, l'appelant atteint sa deadline)
+curl -X POST -H 'Content-Type: application/json' http://toxiproxy:8474/proxies/ms-post__ms-storage/toxics \
+  -d '{"name": "hold", "type": "timeout", "stream": "downstream", "toxicity": 1.0, "attributes": {"timeout": 0}}'
+curl -X DELETE http://toxiproxy:8474/proxies/ms-post__ms-storage/toxics/hold
+```
+
+Points d'attention :
+- Un lien coupé l'est pour **tous** les tests qui tournent en même temps : lancer les suites de panne seules, après les autres.
+- Après un rétablissement, le client gRPC se reconnecte avec un délai d'environ 1 s (mesuré avec un client `@grpc/grpc-js` simple) : attendre avec `eventually`, jamais un appel immédiat.
+- Coupé, un client gRPC voit `UNAVAILABLE` en quelques millisecondes ; avec le `timeout` ci-dessus, `DEADLINE_EXCEEDED` à l'échéance de l'appel.
+
